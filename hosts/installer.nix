@@ -28,7 +28,11 @@
     usbutils
   ];
 
-  image.fileName = lib.mkForce "consensusfoods-installer.iso";
+  # The built filename comes from image.baseName: iso-image.nix passes
+  # "${config.image.baseName}.iso" to the image builder and ignores
+  # image.fileName, despite isoImage.isoName having been renamed to it.
+  # Setting fileName alone silently does nothing.
+  image.baseName = lib.mkForce "consensusfoods-installer";
 
   # New default from 26.11; set explicitly to reduce data-loss risk and to
   # keep the installer build quiet.
