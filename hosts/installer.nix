@@ -23,8 +23,19 @@
   # These laptops have no Ethernet port, so the installer needs working Wi-Fi
   # or provisioning cannot start at all (D10).
   hardware.enableRedistributableFirmware = true;
-  networking.wireless.enable = lib.mkForce false;
+
+  # NetworkManager is already enabled by profiles/installation-device.nix,
+  # which the minimal CD imports; stated here so a change upstream is loud
+  # rather than silently leaving the installer with no way onto a network.
   networking.networkmanager.enable = true;
+
+  # Do NOT disable networking.wireless here. It looks like it would stop
+  # wpa_supplicant fighting NetworkManager, and it does the opposite: the
+  # NetworkManager module sets `wireless.enable = true` with
+  # `dbusControlled = true` precisely so that it owns a wpa_supplicant of its
+  # own. Forcing it off removes wpa_supplicant from the closure entirely, and
+  # NetworkManager then reports every Wi-Fi device as "unavailable" with no
+  # error anywhere — radio present, rfkill clear, no scan results.
 
   # fleet-install carries its own dependencies; these are for the operator
   # when something goes wrong and the scripted path is not enough.
