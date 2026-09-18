@@ -40,7 +40,7 @@ let
       echo
       echo "packages installed outside the declared baseline:"
       if profile=$(nix profile list 2>/dev/null) && [ -n "$profile" ]; then
-        echo "$profile" | sed 's/^/  /'
+        while IFS= read -r line; do printf '  %s\n' "$line"; done <<< "$profile"
       else
         echo "  none"
       fi
