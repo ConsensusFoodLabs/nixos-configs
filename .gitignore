@@ -1,3 +1,9 @@
 result
 result-*
 .direnv/
+
+# The administrator age identity, or a symlink to wherever it really lives.
+# Never committed: it decrypts every machine's recovery key (D25). The
+# pre-commit hook refuses it by path as well, because when this is a symlink
+# git stores only the link target and the secret scanner sees nothing wrong.
+/.admin-key

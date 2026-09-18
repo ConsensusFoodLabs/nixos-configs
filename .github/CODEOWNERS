@@ -18,6 +18,13 @@
 /flake.lock             @ConsensusFoodLabs/fleet-admins
 /.githooks/             @ConsensusFoodLabs/fleet-admins
 /.github/               @ConsensusFoodLabs/fleet-admins
+/scripts/               @ConsensusFoodLabs/fleet-admins
+
+# Who can decrypt every machine's key material, and the key material itself.
+# Changing .sops.yaml changes who holds the fleet's recovery keys, which makes
+# it the single most sensitive file here (D25).
+/.sops.yaml             @ConsensusFoodLabs/fleet-admins
+/fleet/secrets/         @ConsensusFoodLabs/fleet-admins
 
 # Per-developer configuration: light review.
 /users/                 @ConsensusFoodLabs/engineering

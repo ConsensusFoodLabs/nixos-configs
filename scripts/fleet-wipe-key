@@ -1,0 +1,112 @@
+# Destroy the key partition on a provisioning stick.
+#
+#     sudo fleet-wipe-key /dev/sdX
+#
+# Deliberately manual and deliberately separate from fleet-install (D29). A
+# provisioning run that wiped the key would have to be re-armed before the next
+# attempt, which is exactly wrong while the procedure is still being proven.
+#
+# Run it when the stick is done being used, before it goes back in a drawer.
+#
+# What this actually achieves, stated honestly: on flash media, overwriting
+# does not guarantee erasure. Wear levelling means the controller may keep
+# copies in blocks no command can address. blkdiscard asks the controller to
+# discard the whole range, which is the best available answer, but a stick that
+# has held a key should still be treated as having held it. The durable
+# controls are a dedicated stick and the ability to rotate the key.
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'MSG'
+usage: fleet-wipe-key <device>
+
+  <device>   The provisioning stick (/dev/sdX) or its key partition directly.
+
+Refuses anything that is not recognisably a key partition, so it cannot be
+pointed at the wrong thing by a slip of the finger.
+MSG
+    exit 2
+}
+
+target=""
+while (($#)); do
+    case "$1" in
+        -h | --help) usage ;;
+        -*) echo "fleet-wipe-key: unknown option $1" >&2; usage ;;
+        *) [[ -z $target ]] || usage; target=$1 ;;
+    esac
+    shift
+done
+[[ -n $target ]] || usage
+((EUID == 0)) || { echo "fleet-wipe-key: must run as root" >&2; exit 1; }
+
+die() { printf '\nfleet-wipe-key: %s\n' "$*" >&2; exit 1; }
+
+[[ -b $target ]] || die "$target is not a block device"
+
+# Resolve to the key partition. lsblk lists the target and its children, so
+# this handles a whole stick, a partition named directly, and a loop device
+# (which reports TYPE "loop", not "disk") without caring which it was given.
+part=$(lsblk -rno PATH,LABEL "$target" | awk '$2 == "FLEETKEY" { print $1 }' | head -n1)
+if [[ -z $part ]]; then
+    # Unlabelled media is still acceptable if it actually holds a key; the
+    # check below decides. Anything that is not a partition is not.
+    [[ $(lsblk -rno TYPE "$target" | head -n1) == part ]] ||
+        die "no FLEETKEY partition on $target.
+
+If the key is on media not made by fleet-mkstick, name its partition
+directly, e.g. /dev/sdb1."
+    part=$target
+fi
+
+# Confirm this really is key media before destroying it. Either the partition
+# is labelled, or it contains the key file — anything else and we stop.
+# Filesystem label, not partition label: the stick carries a DOS/MBR table,
+# which has no partition labels at all.
+label=$(lsblk -rno LABEL "$part" | head -n1)
+looks_right=0
+[[ $label == FLEETKEY ]] && looks_right=1
+
+mnt=$(mktemp -d)
+cleanup() { umount "$mnt" 2>/dev/null || true; rmdir "$mnt" 2>/dev/null || true; }
+trap cleanup EXIT
+if mount -o ro "$part" "$mnt" 2>/dev/null; then
+    [[ -e $mnt/fleet-admin-key.txt || -e $mnt/.admin-key ]] && looks_right=1
+    umount "$mnt" 2>/dev/null || true
+fi
+
+((looks_right)) || die "$part is neither labelled FLEETKEY nor holds a key file.
+Refusing to wipe something that does not look like key media."
+
+echo "About to destroy everything on $part:"
+lsblk -o NAME,SIZE,TYPE,LABEL,MOUNTPOINTS "$part"
+echo
+read -r -p "Type the partition path to confirm ($part): " confirm
+[[ $confirm == "$part" ]] || die "not confirmed; nothing was changed"
+
+umount "$part" 2>/dev/null || true
+
+# Ask the controller to discard the range; fall back to overwriting if the
+# device does not support it.
+if blkdiscard -f "$part" 2>/dev/null; then
+    method="discarded"
+else
+    dd if=/dev/zero of="$part" bs=1M status=none 2>/dev/null || true
+    method="overwritten (device does not support discard)"
+fi
+sync
+
+# Leave it as a usable, empty partition rather than a confusing blank one.
+mkfs.vfat -n FLEETKEY "$part" >/dev/null
+
+cat <<MSG
+
+Key partition $method and reformatted: $part
+
+Remember what this does and does not give you: on flash, blocks the controller
+has retired are beyond reach. Treat this stick as having held a key. Re-arm it
+for the next machine with:
+
+    sudo ./result-mkstick/bin/fleet-mkstick <device> --key-only
+MSG

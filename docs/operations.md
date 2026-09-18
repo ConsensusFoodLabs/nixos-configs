@@ -1,7 +1,7 @@
 # Operating a laptop
 
-**Status: draft.** Describes intended procedure; the configuration and the
-`fleet-status` script do not exist yet.
+**Status: draft.** Describes intended procedure. No machine has been
+provisioned yet, so none of it has been exercised on real hardware.
 
 ## Updating
 
@@ -12,6 +12,24 @@ Laptops currently track `main`, so an update picks up whatever has been merged
 
 The flake reference is deliberately kept in one place so that switching to a
 release branch or a self-hosted mirror later is a one-line change (D7).
+
+## Changing your credentials
+
+Your laptop shipped with a generated disk passphrase and login password. They
+are *initial* credentials — the ones from `fleet/secrets/<host>.yaml` — and you
+should replace both on your first day (D27):
+
+    fleet-passwd        # login password
+    fleet-passphrase    # disk passphrase
+
+Use these rather than `passwd` and `cryptsetup` directly. `passwd` alone works
+until the next `nixos-rebuild`, which then silently restores the old password:
+accounts are declared with `users.mutableUsers = false`, so the file on disk is
+the source of truth and `fleet-passwd` is what updates it.
+
+Neither tool needs administrator rights, and neither can alter the recovery
+keyslot. The organization keeps its access to the disk whatever you choose, so
+nobody needs to know your passphrase.
 
 ## Rollback
 
@@ -74,8 +92,10 @@ you, that is a conversation, not a local edit.
 ## When a machine will not boot
 
 1. Previous generation from the boot menu (above).
-2. If the LUKS passphrase is the problem, the machine's recovery key unlocks it
-   (D5) — held offline, per machine.
+2. If the LUKS passphrase is the problem, the machine's recovery key unlocks
+   it. Ask an administrator: it is in `fleet/secrets/<host>.yaml`, encrypted,
+   and they read it with `sops decrypt` (D5, D24). One key per machine, and it
+   is unaffected by anything you did with `fleet-passphrase`.
 3. If networking is broken in every generation, the office has a USB-C Ethernet
    adapter (D19).
 4. Reinstall from `docs/provisioning.md`. The machine's configuration is in the

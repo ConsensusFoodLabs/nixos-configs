@@ -1,0 +1,29 @@
+# Who can decrypt per-machine provisioning secrets.
+#
+# These are age *public* keys. Public keys are not secret and belong in a
+# public repository; the matching private identities are held by fleet
+# administrators on removable media and exist nowhere else (D25).
+#
+# Adding an administrator: append their public key here, then re-encrypt every
+# existing file so they can read it:
+#
+#     sops updatekeys fleet/secrets/<host>.yaml
+#
+# Removing an administrator: delete their key here, run `sops updatekeys` on
+# every file, AND rotate the secrets themselves (`fleet-mksecrets <host>
+# --rotate`) plus the affected machines. Removing a recipient does not make
+# them forget what they could already read.
+
+keys:
+  # One entry per administrator. Generate an identity with:
+  #     age-keygen -o /path/to/your/fleet-admin-key-<name>.txt
+  #     ln -s /path/to/your/fleet-admin-key-<name>.txt .admin-key
+  # The public key is printed on the "Public key:" line; it goes here. The
+  # identity itself is reached through .admin-key, which is gitignored (D25).
+  - &admin_oleg age1uxyklq3ga2tc5ex2u6kqazz672mrkgv0s0p05tez008z6wq4c35quwv0e4
+
+creation_rules:
+  - path_regex: ^fleet/secrets/[^/]+\.yaml$
+    key_groups:
+      - age:
+          - *admin_oleg

@@ -1,0 +1,275 @@
+# Install one fleet machine, start to finish.
+#
+# Runs from the installer image (hosts/installer.nix). Everything it needs is
+# either in this repository or on the administrator's age key: the image itself
+# is generic and carries no secrets, so a lost installer stick discloses
+# nothing (D25, D26).
+#
+#     fleet-install --host x1c-oleg
+#
+# Add --check to validate the machine, the network, the secrets and the key
+# without touching the disk. Do that first.
+
+set -euo pipefail
+
+REPO_URL=https://github.com/ConsensusFoodLabs/nixos-configs
+
+usage() {
+    cat >&2 <<'MSG'
+usage: fleet-install [--host HOST] [--identity FILE] [--ref REF] [--check]
+
+  --host HOST      Machine to install, as named in fleet/inventory.nix.
+                   Omitted, you are asked to pick one.
+  --identity FILE  Administrator age key. Omitted, removable media is
+                   searched for fleet-admin-key.txt or .admin-key.
+  --ref REF        Branch or tag to install from. Default: main.
+  --check          Verify everything and stop before the disk is touched.
+MSG
+    exit 2
+}
+
+host="" identity="" ref=main check=0
+while (($#)); do
+    case "$1" in
+        --host) host=${2:?--host needs a value}; shift ;;
+        --identity) identity=${2:?--identity needs a value}; shift ;;
+        --ref) ref=${2:?--ref needs a value}; shift ;;
+        --check) check=1 ;;
+        -h | --help) usage ;;
+        *) echo "fleet-install: unknown argument $1" >&2; usage ;;
+    esac
+    shift
+done
+
+((EUID == 0)) || { echo "fleet-install: must run as root" >&2; exit 1; }
+
+say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+die() { printf '\n\033[1;31mfleet-install: %s\033[0m\n' "$*" >&2; exit 1; }
+
+work=$(mktemp -d)
+keydir=/run/fleet-provision
+mounted=""
+
+cleanup() {
+    # Key material lives in a tmpfs for the length of one install and is
+    # destroyed here whether or not the install succeeded.
+    if [[ -d $keydir ]]; then
+        find "$keydir" -type f -exec shred -u {} + 2>/dev/null || true
+        rm -rf "$keydir"
+    fi
+    [[ -n $mounted ]] && umount "$mounted" 2>/dev/null || true
+    rm -rf "$work"
+}
+trap cleanup EXIT
+
+# --- the repository, pinned to one revision -------------------------------
+#
+# Everything below — the inventory, the secrets, the system that gets
+# installed — comes from a single commit, so the machine can be traced to
+# exactly one source state (D8, D17).
+
+say "Fetching $REPO_URL ($ref)"
+git clone --quiet --branch "$ref" "$REPO_URL" "$work/repo" ||
+    die "could not clone the repository. Is Wi-Fi up? Run nmtui."
+rev=$(git -C "$work/repo" rev-parse HEAD)
+flake="git+$REPO_URL?rev=$rev"
+echo "revision $rev"
+
+mapfile -t devices < <(nix eval --json --impure \
+    --expr "builtins.attrNames (import $work/repo/fleet/inventory.nix).devices" |
+    jq -r '.[]')
+
+if [[ -z $host ]]; then
+    say "Which machine is this?"
+    select host in "${devices[@]}"; do [[ -n $host ]] && break; done
+fi
+printf '%s\n' "${devices[@]}" | grep -qxF "$host" ||
+    die "'$host' is not a device in fleet/inventory.nix at $rev.
+Known: ${devices[*]}"
+
+say "Reading the configuration for $host"
+q() { nix eval --raw "$flake#nixosConfigurations.$host.config.$1"; }
+user=$(q fleet.user)
+disk=$(q disko.devices.disk.main.device)
+luks=$(q disko.devices.disk.main.content.partitions.luks.content.device)
+pass_file=$(q disko.devices.disk.main.content.partitions.luks.content.passwordFile)
+# A list, so --raw cannot render it.
+recovery_file=$(nix eval --json \
+    "$flake#nixosConfigurations.$host.config.disko.devices.disk.main.content.partitions.luks.content.additionalKeyFiles" |
+    jq -er '.[0]')
+
+[[ -n $user && -n $disk && -n $luks && -n $pass_file && -n $recovery_file ]] ||
+    die "could not read the configuration"
+echo "account      $user"
+echo "target disk  $disk"
+echo "luks device  $luks"
+
+# --- the administrator key ------------------------------------------------
+#
+# The one artifact that is not in the image and not in the repository. Without
+# it this script can do nothing, which is the intended property.
+
+# Sets id_file, and possibly mounted, as globals: it may mount removable
+# media, and that has to be visible to the cleanup trap rather than lost in a
+# command substitution's subshell.
+id_file=""
+find_identity() {
+    local cand dev
+    [[ -n $identity ]] && { id_file=$identity; return 0; }
+    [[ -n ${SOPS_AGE_KEY_FILE:-} && -r ${SOPS_AGE_KEY_FILE:-} ]] &&
+        { id_file=$SOPS_AGE_KEY_FILE; return 0; }
+    # Two names because a stick shared between people wants a descriptive
+    # filename, while a workstation links the same key in as .admin-key. Both
+    # are the same artifact; accept either wherever it turns up.
+    for cand in /run/media/*/fleet-admin-key.txt /run/media/*/.admin-key \
+        /mnt/fleet-admin-key.txt /mnt/.admin-key \
+        /root/fleet-admin-key.txt /root/.admin-key; do
+        [[ -r $cand ]] && { id_file=$cand; return 0; }
+    done
+    # Nothing is auto-mounted in the installer, so look inside removable
+    # partitions ourselves. Read-only, and never the disk about to be wiped.
+    mkdir -p "$work/media"
+    while read -r dev; do
+        [[ $dev == "$disk"* ]] && continue
+        mount -o ro "$dev" "$work/media" 2>/dev/null || continue
+        for cand in "$work/media/fleet-admin-key.txt" "$work/media/.admin-key"; do
+            if [[ -r $cand ]]; then
+                mounted=$work/media
+                id_file=$cand
+                return 0
+            fi
+        done
+        umount "$work/media" 2>/dev/null || true
+    done < <(lsblk -rno PATH,TYPE | awk '$2 == "part" { print $1 }')
+    return 1
+}
+
+say "Looking for the administrator key"
+find_identity || die "no administrator age key found.
+
+Put your key on a USB stick as fleet-admin-key.txt (or .admin-key) and plug it
+in, or pass --identity.
+The key is deliberately not in this image: without it, an installer stick is
+not enough to provision anything (D25)."
+echo "using $id_file"
+
+secrets="$work/repo/fleet/secrets/$host.yaml"
+[[ -r $secrets ]] || die "no secrets for '$host' at $rev.
+
+Generate them on an admin workstation and merge them first:
+    nix run .#fleet-mksecrets -- $host"
+
+say "Decrypting the provisioning secrets"
+plain=$(SOPS_AGE_KEY_FILE=$id_file sops decrypt --output-type json "$secrets") ||
+    die "could not decrypt $host.yaml with $id_file.
+
+Either this key is not a recipient in .sops.yaml, or the file was encrypted
+before the key was added. 'sops updatekeys' fixes the second case."
+
+get() { jq -er --arg k "$1" '.[$k]' <<<"$plain"; }
+luks_passphrase=$(get luks_passphrase)
+luks_recovery_key=$(get luks_recovery_key)
+user_initial_password=$(get user_initial_password)
+
+if ((check)); then
+    say "Check passed"
+    cat <<MSG
+$host would be installed from $rev onto $disk, as account '$user'.
+Secrets decrypt, and the disk has not been touched.
+
+Run again without --check to install.
+MSG
+    exit 0
+fi
+
+# --- confirm the disk -----------------------------------------------------
+#
+# The only prompt in the whole run, and the only irreversible step. A stick
+# that installs on boot is a stick that destroys whatever it is left plugged
+# into, so this stays manual on purpose.
+
+say "This will DESTROY everything on $disk"
+lsblk -o NAME,SIZE,TYPE,MODEL,TRAN
+cat <<MSG
+
+$disk is a kernel-assigned name. Confirm it is this machine's internal drive
+and not the installer stick. If more than one NVMe is listed, stop and fix the
+declaration rather than improvising.
+
+MSG
+read -r -p "Type the device path to confirm ($disk): " confirm
+[[ $confirm == "$disk" ]] || die "not confirmed; nothing was changed"
+
+# --- partition, encrypt, install ------------------------------------------
+
+# Wherever disko says the key files go, that is what gets created and what
+# gets shredded — so changing the paths in disko.nix cannot leave key material
+# behind in a directory this script forgot about.
+keydir=$(dirname "$pass_file")
+say "Writing key material to $keydir"
+mkdir -p "$keydir" "$(dirname "$recovery_file")"
+chmod 0700 "$keydir"
+# No trailing newline: cryptsetup takes a key file byte for byte, and a key
+# with a newline in it cannot be typed at the boot prompt.
+printf '%s' "$luks_passphrase" >"$pass_file"
+printf '%s' "$luks_recovery_key" >"$recovery_file"
+chmod 0400 "$pass_file" "$recovery_file"
+
+say "Partitioning and encrypting"
+# Pinned to the disko revision this repository's flake.lock names, so the tool
+# that formats the disk is as traceable as the system that lands on it.
+disko_rev=$(jq -r '.nodes.disko.locked.rev' "$work/repo/flake.lock")
+nix run "github:nix-community/disko/$disko_rev" -- --mode disko --flake "$flake#$host"
+
+say "Verifying both keyslots"
+# An escrow key that was never tested is not escrow.
+cryptsetup luksOpen --test-passphrase --key-file "$pass_file" "$luks" ||
+    die "the developer passphrase does not open $luks"
+cryptsetup luksOpen --test-passphrase --key-file "$recovery_file" "$luks" ||
+    die "the RECOVERY KEY does not open $luks — do not ship this machine"
+echo "both slots open the disk"
+
+say "Setting the initial account password for $user"
+# Accounts use hashedPasswordFile, so the hash lives on the machine and never
+# in this public repository (D21). The developer replaces it with fleet-passwd.
+install -d -m 0755 /mnt/var/lib/fleet
+printf '%s\n' "$user_initial_password" |
+    mkpasswd -m yescrypt -s >"/mnt/var/lib/fleet/$user.passwd"
+chmod 0600 "/mnt/var/lib/fleet/$user.passwd"
+
+say "Installing NixOS"
+nixos-install --no-root-passwd --flake "$flake#$host"
+
+# A local record of what was provisioned, for the asset register and for
+# anyone debugging this machine later (D17).
+cat >/mnt/var/lib/fleet/provisioned <<MSG
+host=$host
+revision=$rev
+installed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+MSG
+chmod 0644 /mnt/var/lib/fleet/provisioned
+
+say "Done — $host installed from $rev"
+cat <<MSG
+
+Hand over to the developer:
+
+  Disk passphrase   $luks_passphrase
+  Login password    $user_initial_password
+
+Both are initial credentials. Tell them to change both on first login:
+
+  fleet-passwd                      change the login password
+  fleet-passphrase                  change the disk passphrase
+
+The recovery key is unchanged by either and is how the organization retains
+access to this disk. It is in fleet/secrets/$host.yaml and nowhere on this
+machine.
+
+Still to do by hand:
+  - Record hostname and serial in the asset register (private, not the repo).
+  - Reboot, unlock with the passphrase above, and confirm Wi-Fi comes up.
+  - The stick still holds your administrator key. Nothing wiped it, on
+    purpose, so you can install again without re-arming it. When you are
+    finished with it:  sudo fleet-wipe-key <device>
+MSG

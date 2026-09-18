@@ -8,6 +8,58 @@
 
 set -euo pipefail
 
+# The administrator identity must never be committed. gitleaks catches the key
+# material itself, but .admin-key is normally a *symlink*: git then stores only
+# the link target, which scans perfectly clean while still telling the world
+# where an admin keeps their key. So this is checked by path (D25).
+if git diff --cached --name-only --diff-filter=ACM | grep -qx '.admin-key'; then
+    cat >&2 <<'MSG'
+pre-commit: .admin-key is staged.
+
+That is the administrator age identity — or a symlink revealing where it is
+kept. It decrypts every machine's recovery key and must never be committed to
+a public repository. It is in .gitignore; this was forced.
+
+    git restore --staged .admin-key
+MSG
+    exit 1
+fi
+
+# fleet/secrets/ holds per-machine key material, in the clear-text sense that
+# it holds the real values — encrypted. That is the only reason it is safe in
+# a public repository (D24).
+#
+# gitleaks will not save us here: these values are random strings with no
+# provider fingerprint, and it scans a plaintext one without complaint. This
+# check is the control that catches it, so it runs first and separately.
+unencrypted=""
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    blob=$(git show ":$f")
+    case "$blob" in
+        *"ENC[AES256_GCM"*) ;;
+        *) unencrypted="$unencrypted $f" ;;
+    esac
+    case "$blob" in
+        *"sops:"*) ;;
+        *) unencrypted="$unencrypted $f" ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACM -- 'fleet/secrets/*.yaml')
+
+if [ -n "$unencrypted" ]; then
+    cat >&2 <<MSG
+pre-commit: unencrypted file staged under fleet/secrets/:
+$(printf '  %s\n' $unencrypted | sort -u)
+
+This repository is public. Generate these with:
+
+    nix run .#fleet-mksecrets -- <hostname>
+
+which encrypts to the recipients in .sops.yaml. Never write them by hand.
+MSG
+    exit 1
+fi
+
 if command -v gitleaks >/dev/null 2>&1; then
     scan=(gitleaks)
 elif command -v nix >/dev/null 2>&1; then

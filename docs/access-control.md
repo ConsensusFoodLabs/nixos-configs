@@ -37,6 +37,25 @@ highest-privilege path in the repository. Granting root must require the tighter
 approver group, and it must be legible in git history, because that history is
 the access-control evidence.
 
+### The administrator age key
+
+Holding an administrator age identity is a distinct and higher privilege from
+holding `wheel` on a laptop. It decrypts `fleet/secrets/`, which means it grants
+the ability to unlock **every machine in the fleet**, including ones the holder
+was never assigned (D25).
+
+It is therefore not implied by `admin = true` in the inventory, and is not
+granted by merging anything. Someone holds it because a key was physically given
+to them and their public key was added to `.sops.yaml` — a change under tight
+review, and the most consequential change anyone can make here.
+
+Keep the list short. Two is the minimum that survives someone losing a key; it
+should not casually grow past that.
+
+Each administrator links their identity in at `.admin-key` in the repository
+root — gitignored, normally a symlink to removable media, never a file living
+on a laptop's disk. See `docs/provisioning.md`.
+
 ## Review split
 
 `CODEOWNERS` encodes two tiers:
@@ -53,6 +72,9 @@ until the provisioning flow is proven end to end (D23). Until it is enabled,
 GitHub requests review from these teams but does not require it, and direct
 pushes to `main` are possible. Treat the tiers as the intended design, not as
 an operating control.
+
+Changing `.sops.yaml` or `fleet/secrets/` is tight review, for the reason
+above.
 
 ## The home-manager boundary
 
@@ -94,13 +116,23 @@ never run `nixos-rebuild` again. Do the real work first:
    authority. This is what actually ends their access.
 3. **Rotate secrets they held.** Removing someone as a recipient does not help:
    they already had the plaintext (D1).
+
+   If they held an **administrator age key**, this is the large job, not a
+   formality: they could read every machine's recovery key. Remove their public
+   key from `.sops.yaml`, run `sops updatekeys` on every file in
+   `fleet/secrets/`, rotate each machine's secrets, and re-enrol the affected
+   keyslots on machines still in the field (D25). `sops updatekeys` alone
+   changes nothing about what they already know.
 4. **Set `active = false`** in the inventory, by pull request. Keep the entry
    rather than deleting it — the inventory is the complete record of who has held
    access, and a deleted entry is indistinguishable from one that never existed.
    `active = false` makes the configuration *assert* the revocation rather than
    merely omit the person.
-5. **Wipe or re-provision the returned machine.** Its recovery key unlocks it if
-   the passphrase left with them (D5).
+5. **Wipe or re-provision the returned machine.** Its recovery key unlocks it
+   if the passphrase left with them — an administrator reads it from
+   `fleet/secrets/<host>.yaml` (D5, D24). This is the case the recovery keyslot
+   exists for, and the reason `fleet-passphrase` cannot touch it: a departing
+   person cannot lock the organization out of a machine it owns.
 
 ### What NixOS actually does with a removed account
 

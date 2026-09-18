@@ -1,0 +1,179 @@
+# Build a provisioning stick: the installer image plus your administrator key.
+#
+# Run on an administrator workstation, as root:
+#
+#     nix build .#installer-iso
+#     nix build .#fleet-mkstick -o result-mkstick
+#     sudo ./result-mkstick/bin/fleet-mkstick /dev/sdX
+#
+# Run it from the repository root, so it finds .admin-key.
+#
+# The key goes on the stick, never into the image. The image lives in the nix
+# store, which is world-readable and may be copied to a binary cache; a private
+# key there could not be unpublished (D25, D29).
+#
+# The stick that results IS sensitive: treat it as the key itself. Wiping the
+# key partition is a separate, manual step — `fleet-wipe-key` — done when the
+# stick is finished with, not automatically at the end of an install (D29).
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'MSG'
+usage: fleet-mkstick <device> [--key-only] [--iso PATH] [--identity PATH]
+
+  <device>         Whole disk to write, e.g. /dev/sdb. NOT a partition.
+  --key-only       Refresh just the key partition, leaving the installer
+                   image alone. Use this to re-arm a wiped stick.
+  --iso PATH       Installer image. Default: ./result/iso/*.iso from
+                   `nix build .#installer-iso`.
+  --identity PATH  Administrator age key. Default: ./.admin-key.
+MSG
+    exit 2
+}
+
+device="" key_only=0 iso="" identity=""
+while (($#)); do
+    case "$1" in
+        --key-only) key_only=1 ;;
+        --iso) iso=${2:?--iso needs a path}; shift ;;
+        --identity) identity=${2:?--identity needs a path}; shift ;;
+        -h | --help) usage ;;
+        -*) echo "fleet-mkstick: unknown option $1" >&2; usage ;;
+        *)
+            [[ -z $device ]] || { echo "fleet-mkstick: one device at a time" >&2; usage; }
+            device=$1
+            ;;
+    esac
+    shift
+done
+[[ -n $device ]] || usage
+((EUID == 0)) || { echo "fleet-mkstick: must run as root (use sudo)" >&2; exit 1; }
+
+die() { printf '\nfleet-mkstick: %s\n' "$*" >&2; exit 1; }
+say() { printf '\n==> %s\n' "$*"; }
+
+[[ -b $device ]] || die "$device is not a block device"
+[[ $device =~ [0-9]$ && $device == /dev/sd* ]] && die "$device looks like a partition; give the whole disk"
+
+# --- the key ---------------------------------------------------------------
+
+# $PWD before git: this runs under sudo, and git refuses to report a toplevel
+# for a repository owned by someone else ("dubious ownership"). Running from
+# the repository root is the documented flow and needs no git at all.
+key=$identity
+[[ -n $key ]] || key=${SOPS_AGE_KEY_FILE:-}
+[[ -n $key ]] || { [[ -e $PWD/.admin-key ]] && key=$PWD/.admin-key; }
+[[ -n $key ]] || key=$(git rev-parse --show-toplevel 2>/dev/null || true)/.admin-key
+
+[[ -e $key ]] || die "no administrator key found (looked at ${key:-nothing}).
+
+Run this from the repository root, where .admin-key is, or name the key:
+    sudo ./result-mkstick/bin/fleet-mkstick $device --identity /path/to/key.txt
+
+Note that sudo drops SOPS_AGE_KEY_FILE unless you pass -E."
+
+grep -q '^AGE-SECRET-KEY-' "$key" ||
+    die "$key does not look like an age identity"
+
+# --- confirm the device ----------------------------------------------------
+
+name=$(basename "$(readlink -f "$device")")
+removable=$(cat "/sys/block/$name/removable" 2>/dev/null || echo 0)
+
+say "Target: $device"
+lsblk -o NAME,SIZE,TYPE,MODEL,TRAN,MOUNTPOINTS "$device"
+if [[ $removable != 1 ]]; then
+    cat >&2 <<MSG
+
+WARNING: the kernel does not report $device as removable. On a laptop that is
+usually the internal drive. Check the model and size above very carefully.
+MSG
+fi
+echo
+read -r -p "Type the device path to confirm ($device): " confirm
+[[ $confirm == "$device" ]] || die "not confirmed; nothing was changed"
+
+# Anything currently mounted from this stick will be in the way.
+while read -r part; do
+    umount "$part" 2>/dev/null || true
+done < <(lsblk -rno PATH "$device" | tail -n +2)
+
+# --- the installer image ---------------------------------------------------
+
+if ((!key_only)); then
+    if [[ -z $iso ]]; then
+        shopt -s nullglob
+        candidates=(result/iso/*.iso result-iso/iso/*.iso)
+        shopt -u nullglob
+        ((${#candidates[@]} == 1)) ||
+            die "could not find exactly one image in ./result/iso/.
+Run 'nix build .#installer-iso' first, or pass --iso PATH."
+        iso=${candidates[0]}
+    fi
+    [[ -r $iso ]] || die "cannot read $iso"
+
+    say "Writing $(basename "$iso") to $device"
+    dd if="$iso" of="$device" bs=4M conv=fsync status=progress
+    sync
+fi
+
+# --- the key partition -----------------------------------------------------
+#
+# Added after the image rather than inside it. The image stays a generic,
+# shareable artifact; this partition is the part that must not leave your
+# hands, and it is what fleet-install destroys when it is done.
+
+say "Adding the key partition"
+# The image is an isohybrid: a DOS/MBR table whose first partition starts at
+# sector 0 and covers the whole image, with the EFI partition nested *inside*
+# it. That is deliberate and it boots, but it is not a valid GPT, so GPT tools
+# (sgdisk) refuse it outright. Append in MBR terms instead, and leave the
+# existing entries and the boot code in the first 440 bytes alone.
+#
+# MBR has no partition labels, so the key partition is identified by its
+# filesystem label. That is what lsblk reports as LABEL, not PARTLABEL.
+before=$(lsblk -rno PATH "$device" | tail -n +2 | sort)
+
+part=$(lsblk -rno PATH,LABEL "$device" | awk '$2 == "FLEETKEY" { print $1 }' | head -n1)
+if [[ -z $part ]]; then
+    # No start or size: sfdisk puts it in the free space after the image and
+    # takes what is left. --force because the overlapping isohybrid entries
+    # fail sfdisk's consistency checks by design.
+    echo 'type=0c' | sfdisk --append --force "$device" >/dev/null 2>&1 ||
+        die "could not append a key partition to $device.
+
+The image may fill the stick, leaving no free space. Use a larger stick, or
+carry the key on a second stick — fleet-install searches all removable media."
+
+    partprobe "$device" 2>/dev/null || true
+    udevadm settle 2>/dev/null || true
+
+    after=$(lsblk -rno PATH "$device" | tail -n +2 | sort)
+    part=$(comm -13 <(echo "$before") <(echo "$after") | head -n1)
+    [[ -n $part ]] || die "the key partition did not appear after partprobe"
+fi
+
+mkfs.vfat -n FLEETKEY "$part" >/dev/null || die "could not format $part"
+
+mnt=$(mktemp -d)
+trap 'umount "$mnt" 2>/dev/null || true; rmdir "$mnt" 2>/dev/null || true' EXIT
+mount "$part" "$mnt"
+cp "$key" "$mnt/fleet-admin-key.txt"
+sync
+
+# Prove it rather than assume it: a stick that silently did not take the key
+# is discovered standing in front of the laptop.
+cmp -s "$key" "$mnt/fleet-admin-key.txt" || die "the key did not copy correctly"
+umount "$mnt"
+
+say "Done"
+cat <<MSG
+
+$device now carries the installer and your key on $part.
+
+This stick is sensitive: it holds an identity that decrypts every machine's
+recovery key. Nothing wipes it for you. When you are finished provisioning:
+
+    sudo fleet-wipe-key $device
+MSG

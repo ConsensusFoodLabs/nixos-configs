@@ -21,6 +21,8 @@
 
       inventory = import ./fleet/inventory.nix;
 
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+
       # One nixosConfiguration per device in the inventory (D3). Adding a
       # machine is an inventory entry; this file does not change.
       mkDevice = hostname: device:
@@ -62,9 +64,39 @@
         };
       };
 
-      # Built locally; there is no CI (D8).
-      packages.x86_64-linux.installer-iso =
-        self.nixosConfigurations.installer.config.system.build.isoImage;
+      packages.x86_64-linux = {
+        # Built locally; there is no CI (D8). One image for the whole fleet.
+        installer-iso =
+          self.nixosConfigurations.installer.config.system.build.isoImage;
+
+        # Run on an administrator workstation to create a machine's encrypted
+        # provisioning secrets: nix run .#fleet-mksecrets -- <hostname>
+        fleet-mksecrets = pkgs.writeShellApplication {
+          name = "fleet-mksecrets";
+          runtimeInputs = with pkgs; [ coreutils git gnugrep nix sops ];
+          text = builtins.readFile ./scripts/fleet-mksecrets;
+        };
+
+        # Lives on the installer image, not on a workstation. Exposed so that
+        # `nix flake check` builds it and shellcheck sees it.
+        fleet-install = import ./modules/installer/package.nix pkgs;
+
+        # Writes the installer image and an administrator key to one stick.
+        fleet-mkstick = pkgs.writeShellApplication {
+          name = "fleet-mkstick";
+          runtimeInputs = with pkgs; [
+            coreutils
+            dosfstools
+            git
+            gnugrep
+            util-linux
+          ];
+          text = builtins.readFile ./scripts/fleet-mkstick;
+        };
+
+        # Destroys the key partition afterwards. Manual, never automatic (D29).
+        fleet-wipe-key = import ./modules/installer/wipe-key.nix pkgs;
+      };
 
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixpkgs-fmt;
     };

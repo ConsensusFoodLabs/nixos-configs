@@ -2,12 +2,19 @@
 #
 # Deliberately generic: one image installs any machine in the fleet, because
 # the machine's actual configuration is fetched from this repository during
-# `nixos-install`. Nothing host-specific is baked in.
+# `nixos-install`. Nothing host-specific is baked in — and, just as
+# deliberately, no secrets are either.
+#
+# Per-machine key material lives encrypted in fleet/secrets/ in the public
+# repository, and is decrypted at install time with an administrator key held
+# on removable media. So this image is not sensitive, is built once, and
+# installs every machine in the fleet (D24, D25, D26).
 { config, lib, pkgs, modulesPath, ... }:
 
 {
   imports = [
     (modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix")
+    ../modules/installer/fleet-install.nix
   ];
 
   # The installer must be able to fetch this flake.
@@ -19,10 +26,15 @@
   networking.wireless.enable = lib.mkForce false;
   networking.networkmanager.enable = true;
 
+  # fleet-install carries its own dependencies; these are for the operator
+  # when something goes wrong and the scripted path is not enough.
   environment.systemPackages = with pkgs; [
     git
-    cryptsetup # enrolling the recovery keyslot (D5)
-    mkpasswd # creating the account password hash
+    cryptsetup
+    mkpasswd
+    sops
+    age
+    jq
     gptfdisk
     pciutils
     usbutils
