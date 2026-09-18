@@ -14,6 +14,7 @@ pkgs.writeShellApplication {
     gnugrep
     jq
     mkpasswd
+    mtools
     nix
     nixos-install-tools
     sops

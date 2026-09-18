@@ -113,8 +113,9 @@ echo "luks device  $luks"
 # media, and that has to be visible to the cleanup trap rather than lost in a
 # command substitution's subshell.
 id_file=""
+tried=""
 find_identity() {
-    local cand dev
+    local cand dev name
     [[ -n $identity ]] && { id_file=$identity; return 0; }
     [[ -n ${SOPS_AGE_KEY_FILE:-} && -r ${SOPS_AGE_KEY_FILE:-} ]] &&
         { id_file=$SOPS_AGE_KEY_FILE; return 0; }
@@ -126,16 +127,38 @@ find_identity() {
         /root/fleet-admin-key.txt /root/.admin-key; do
         [[ -r $cand ]] && { id_file=$cand; return 0; }
     done
-    # Nothing is auto-mounted in the installer, so look inside removable
-    # partitions ourselves. Read-only, and never the disk about to be wiped.
+
     mkdir -p "$work/media"
+    umask 077
     while read -r dev; do
         [[ $dev == "$disk"* ]] && continue
+        tried="$tried $dev"
+
+        # mtools first, because mounting often cannot work here.
+        #
+        # An isohybrid's first partition starts at sector 0, so the iso9660
+        # filesystem is visible on the whole-disk device as well as on
+        # partition 1 — and the installer boots with /dev/sda itself mounted at
+        # /iso, not /dev/sda1. A mounted whole disk is claimed exclusively, so
+        # *no* partition on the stick you booted from can be mounted at all:
+        # mount fails with "can't open blockdev". mtools reads the FAT
+        # filesystem with an ordinary read-only open and is unaffected, which
+        # is what makes a single provisioning stick work.
+        for name in fleet-admin-key.txt .admin-key; do
+            if MTOOLS_SKIP_CHECK=1 mcopy -n -i "$dev" "::$name" \
+                "$work/identity" 2>/dev/null && [[ -s $work/identity ]]; then
+                id_file=$work/identity
+                return 0
+            fi
+        done
+
+        # Anything that is not FAT — a second stick formatted ext4, say.
         mount -o ro "$dev" "$work/media" 2>/dev/null || continue
-        for cand in "$work/media/fleet-admin-key.txt" "$work/media/.admin-key"; do
-            if [[ -r $cand ]]; then
-                mounted=$work/media
-                id_file=$cand
+        for name in fleet-admin-key.txt .admin-key; do
+            if [[ -r $work/media/$name ]]; then
+                cp "$work/media/$name" "$work/identity"
+                umount "$work/media" 2>/dev/null || true
+                id_file=$work/identity
                 return 0
             fi
         done
@@ -147,8 +170,11 @@ find_identity() {
 say "Looking for the administrator key"
 find_identity || die "no administrator age key found.
 
+Searched these partitions for fleet-admin-key.txt and .admin-key:
+   ${tried:-  (none found — is the stick plugged in?)}
+
 Put your key on a USB stick as fleet-admin-key.txt (or .admin-key) and plug it
-in, or pass --identity.
+in, or pass --identity /path/to/key.
 The key is deliberately not in this image: without it, an installer stick is
 not enough to provision anything (D25)."
 echo "using $id_file"
