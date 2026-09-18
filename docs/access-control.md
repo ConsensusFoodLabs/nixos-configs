@@ -48,6 +48,12 @@ the access-control evidence.
 
 Nobody merges their own changes to shared configuration.
 
+**Not yet enforced.** Branch protection on `main` is deliberately postponed
+until the provisioning flow is proven end to end (D23). Until it is enabled,
+GitHub requests review from these teams but does not require it, and direct
+pushes to `main` are possible. Treat the tiers as the intended design, not as
+an operating control.
+
 ## The home-manager boundary
 
 Developers configure their own environment through home-manager at

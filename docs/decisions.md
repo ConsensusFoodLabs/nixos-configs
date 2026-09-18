@@ -463,6 +463,33 @@ preference.
 
 ---
 
+## D23 — Branch protection postponed
+
+**Decided:** `CODEOWNERS` and the two GitHub teams exist and have write access,
+but branch protection on `main` is **not** enabled yet. Deferred until the
+provisioning flow has been proven end to end.
+
+**Why:** the flow has never been run — disko, keyslot enrolment, the password
+hash file and the first `nixos-install` are all unexercised. Iterating on that
+is faster without a review gate, and a gate approved only by the person who
+wrote the change would not be separating anything yet.
+
+**What this means in the meantime — read this part:** until branch protection
+is on, `CODEOWNERS` is advisory. GitHub will request review from the right team
+but will not require it, and nothing prevents a direct push to `main`. The
+separation of duties described in `docs/access-control.md` is therefore
+*structurally in place but not enforced*. Do not describe it as an operating
+control until this is done.
+
+**Revisit when:** the first laptop is provisioned and updating from the repo
+works. At that point enable, on `main`: require a pull request, require review
+from Code Owners, dismiss stale approvals on new commits, and no bypass for
+administrators. Note that `engineering` already has a second member, so
+review by someone other than the author becomes possible — and meaningful —
+immediately.
+
+---
+
 ## Open, non-blocking
 
 - **Fingerprint reader.** The sensor is Synaptics `06cb:019f` (not Goodix as
