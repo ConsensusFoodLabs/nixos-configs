@@ -118,7 +118,25 @@ Run 'nix build .#installer-iso' first, or pass --iso PATH."
     [[ -r $iso ]] || die "cannot read $iso"
 
     say "Writing $(basename "$iso") to $device"
-    dd if="$iso" of="$device" bs=4M conv=fsync status=progress
+
+    # Buffered writes land in the page cache at RAM speed and then block for
+    # minutes on one final flush, so the progress meter reads ~700 MB/s and
+    # then appears to hang. O_DIRECT writes through to the device, which makes
+    # the reported rate the real one and the finish time honest.
+    #
+    # Not every device or kernel accepts O_DIRECT, so probe before relying on
+    # it. Writing 4M of zeros at offset 0 costs nothing: the image is about to
+    # overwrite that anyway, and the device is already confirmed.
+    if dd if=/dev/zero of="$device" bs=4M count=1 oflag=direct status=none 2>/dev/null; then
+        dd if="$iso" of="$device" bs=4M oflag=direct conv=fsync status=progress
+    else
+        echo "note: this device does not accept direct I/O; the progress below"
+        echo "      will run ahead of the real write, and the final flush will"
+        echo "      take a while with no output."
+        dd if="$iso" of="$device" bs=4M conv=fsync status=progress
+    fi
+
+    echo "flushing..."
     sync
 
     # dd does not make the kernel re-read the partition table, so whatever was
@@ -217,6 +235,13 @@ umount "$mnt"
 # it is compared, so a short or failed write is still caught.
 if ((!key_only)) && ((verify)); then
     say "Verifying the image on $device"
+    echo "Reading it back off the device; expect this to take about as long as"
+    echo "the write did. Skip it with --no-verify if you must."
+
+    # Drop what the kernel is holding for this device, or the comparison reads
+    # the page cache back and verifies nothing about what actually landed.
+    blockdev --flushbufs "$device" 2>/dev/null || true
+
     iso_size=$(stat -c%s "$iso")
     if ! cmp -s -n 440 "$device" "$iso"; then
         die "the boot code on $device does not match $iso. Do not boot this stick."
