@@ -11,6 +11,17 @@
 {
   disko.devices.disk.main = {
     type = "disk";
+
+    # Kernel-assigned name, and applying disko destroys whatever is here.
+    # Uniform hardware with a single internal NVMe makes this stable, but it
+    # is checked by hand at provisioning time (docs/provisioning.md step 3)
+    # rather than trusted. A by-id path would be safer and is unique per
+    # physical drive, which would mean putting a hardware identifier in the
+    # inventory — deliberately avoided (D13).
+    #
+    # Nothing downstream depends on this name: disko labels the partitions it
+    # creates, and everything mounts by partition label, so no machine-specific
+    # device paths or UUIDs reach the configuration.
     device = "/dev/nvme0n1";
     content = {
       type = "gpt";

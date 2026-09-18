@@ -43,7 +43,25 @@ booted (`nmtui`).
   tooling (lanzaboote) that is not part of this configuration.
 - Boot from the USB stick.
 
-## 3. Partition and encrypt
+## 3. Confirm the target disk
+
+`hosts/<model>/disko.nix` names the disk as `/dev/nvme0n1`. That is a
+kernel-assigned name, and the next step **destroys whatever is at it**. Confirm
+it is the machine's internal drive and that nothing else could be claiming the
+name:
+
+    lsblk -o NAME,SIZE,TYPE,MODEL,TRAN
+
+Expect exactly one internal NVMe device, of the expected size, plus the USB
+installer. If there is more than one NVMe, or the internal drive is not
+`nvme0n1`, stop: fix the declaration rather than improvising, because the
+mismatch will be silent and destructive.
+
+After this step device names stop mattering — disko labels the partitions it
+creates and everything mounts by partition label, so no machine-specific UUIDs
+or device paths end up in the configuration.
+
+## 4. Partition and encrypt
 
 Disk layout, including LUKS, is declared with disko and applied from the
 installer:
@@ -58,7 +76,7 @@ passphrase. Unlock is passphrase-only; no TPM enrollment (D4).
 must be done by hand — in particular whether the escrow keyslot in step 4 can be
 declared or must be added manually after installation.
 
-## 4. Enrol the recovery key
+## 5. Enrol the recovery key
 
 Every machine gets a second LUKS keyslot holding an organization-held recovery
 key, unique to that machine (D5).
@@ -74,7 +92,7 @@ never tested is not escrow:
 
     cryptsetup luksOpen --test-passphrase /dev/<device>
 
-## 5. Set the account password hash
+## 6. Set the account password hash
 
 Accounts are declared with `users.mutableUsers = false`, so the password comes
 from a file on the machine rather than from the repository — a public repo is
@@ -89,7 +107,7 @@ Create it **before** installing, or the machine boots with no way to log in:
 The filename must match the account name exactly (the account is named after
 the person's corporate username — D11).
 
-## 6. Install
+## 7. Install
 
     sudo nixos-install --no-root-passwd \
         --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#<host>
@@ -97,7 +115,7 @@ the person's corporate username — D11).
 Root has no password by design; administrators use `sudo` via `wheel`, which is
 granted in the inventory (D12). Reboot and remove the stick.
 
-## 7. Verify before handing the machine over
+## 8. Verify before handing the machine over
 
     fleet-status                  # revision, upstream lag, profile contents
     nixos-version --json          # configurationRevision must be a real commit, not "dirty"
@@ -107,7 +125,7 @@ granted in the inventory (D12). Reboot and remove the stick.
     lsblk                         # confirm the LUKS layout matches the declaration
 
 Log in as the account before handing the machine over. A missing or
-wrongly-named password hash file (step 5) produces an account that cannot log
+wrongly-named password hash file (step 6) produces an account that cannot log
 in, and it is much easier to fix from the installer than afterwards.
 
 Then reboot once more and confirm the machine unlocks with the developer
@@ -117,7 +135,7 @@ Wi-Fi is the one that matters most: these machines have no Ethernet port, and a
 laptop that cannot reach the network cannot pull its own fix (D10). If `iwlwifi`
 has not loaded firmware, stop and fix it before the machine leaves.
 
-## 8. Record it
+## 9. Record it
 
 - Asset register (private, not this repository): hostname, serial, purchase and
   warranty details, who holds it.
