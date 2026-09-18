@@ -405,6 +405,64 @@ difference between "drive over with a dongle" and "reinstall".
 
 ---
 
+## D20 — Unfree packages allowed by name, not blanket-enabled
+
+**Decided:** `nixpkgs.config.allowUnfreePredicate` with an explicit allowlist in
+`profiles/base.nix`, rather than `allowUnfree = true`. Currently one entry:
+`claude-code`.
+
+**Why:** this is a *licensing* control, not a security one. It makes the set of
+proprietary software shipped fleet-wide reviewable in one place and answers
+"what non-free software runs on these machines" from the repository. It is not
+an attempt to restrict what developers run — that would contradict D15, and
+anyone can still `nix shell` anything.
+
+**Consequences:** a developer who wants an unfree package in their own
+`users/<name>/home.nix` needs an entry added to a tightly-reviewed file. That is
+real friction, and it is the argument for flipping this to `allowUnfree = true`
+if it becomes annoying — a one-line change.
+
+---
+
+## D21 — Password hashes live on the machine, not in the repository
+
+**Decided:** accounts use `hashedPasswordFile = "/var/lib/fleet/<user>.passwd"`,
+created during provisioning with `mkpasswd`. Combined with
+`users.mutableUsers = false`.
+
+**Why:** `mutableUsers = false` gives the guarantee that no undeclared local
+account exists, and makes a removed account actually disappear from
+`/etc/passwd`. But it requires a declared password, and a password hash in a
+public repository is a crackable credential published to the world. Until
+secrets tooling exists (D1), the hash is per-machine local state created at
+install time.
+
+**Consequences:** provisioning has a step that, if skipped or misnamed, produces
+a machine nobody can log in to. Hence the explicit verification step in
+`docs/provisioning.md`.
+
+**Revisit when:** sops-nix lands — the hash could then be delivered encrypted,
+though per-machine local state is arguably the better answer regardless.
+
+---
+
+## D22 — GNOME as the desktop environment
+
+**Decided:** GNOME with GDM, declared in `profiles/engineering.nix`.
+
+**Why:** a laptop needs a desktop, and GNOME has working defaults on current
+hardware. More importantly it provides screen locking, which is a security
+control — so the lock settings are declared at the system level where light
+review cannot reach them (D14), not left to each developer's home
+configuration.
+
+**Consequences:** this was chosen without much deliberation and is easy to
+change. If the team prefers something else, the thing to preserve is that
+screen locking stays a system-level declaration rather than a personal
+preference.
+
+---
+
 ## Open, non-blocking
 
 - **Fingerprint reader.** The sensor is Synaptics `06cb:019f` (not Goodix as

@@ -24,12 +24,18 @@ Images are built locally; there is no CI (D8).
 
     git -C nixos-configs status          # must be clean
     git -C nixos-configs push            # the revision must exist upstream
-    nix build .#nixosConfigurations.<host>.config.system.build.isoImage
+    nix build .#installer-iso
+
+One image installs any machine in the fleet — nothing host-specific is baked
+in, because the machine's real configuration is fetched from this repository
+during installation. The image carries `cryptsetup`, `mkpasswd`, git and
+NetworkManager, which is everything the steps below need.
 
 Build only from a committed, pushed revision. A system built from a dirty tree
 reports its revision as `dirty` and cannot be traced to a source state.
 
-Write it to the stick with `dd` or equivalent.
+Write it to the stick with `dd` or equivalent, then connect it to Wi-Fi once
+booted (`nmtui`).
 
 ## 2. Firmware settings
 
@@ -68,19 +74,41 @@ never tested is not escrow:
 
     cryptsetup luksOpen --test-passphrase /dev/<device>
 
-## 5. Install
+## 5. Set the account password hash
 
-    sudo nixos-install --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#<host>
+Accounts are declared with `users.mutableUsers = false`, so the password comes
+from a file on the machine rather than from the repository — a public repo is
+no place for a password hash, and secrets tooling does not exist yet (D1, D21).
 
-Set the initial user password when prompted, reboot, remove the stick.
+Create it **before** installing, or the machine boots with no way to log in:
 
-## 6. Verify before handing the machine over
+    mkdir -p /mnt/var/lib/fleet
+    mkpasswd -m yescrypt > /mnt/var/lib/fleet/<user>.passwd
+    chmod 0600 /mnt/var/lib/fleet/<user>.passwd
 
+The filename must match the account name exactly (the account is named after
+the person's corporate username — D11).
+
+## 6. Install
+
+    sudo nixos-install --no-root-passwd \
+        --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#<host>
+
+Root has no password by design; administrators use `sudo` via `wheel`, which is
+granted in the inventory (D12). Reboot and remove the stick.
+
+## 7. Verify before handing the machine over
+
+    fleet-status                  # revision, upstream lag, profile contents
     nixos-version --json          # configurationRevision must be a real commit, not "dirty"
     ip link                       # wlan interface present
     dmesg | grep -i iwlwifi       # firmware loaded, no errors
     systemctl --failed
     lsblk                         # confirm the LUKS layout matches the declaration
+
+Log in as the account before handing the machine over. A missing or
+wrongly-named password hash file (step 5) produces an account that cannot log
+in, and it is much easier to fix from the installer than afterwards.
 
 Then reboot once more and confirm the machine unlocks with the developer
 passphrase, and separately that it unlocks with the recovery key.
@@ -89,7 +117,7 @@ Wi-Fi is the one that matters most: these machines have no Ethernet port, and a
 laptop that cannot reach the network cannot pull its own fix (D10). If `iwlwifi`
 has not loaded firmware, stop and fix it before the machine leaves.
 
-## 7. Record it
+## 8. Record it
 
 - Asset register (private, not this repository): hostname, serial, purchase and
   warranty details, who holds it.

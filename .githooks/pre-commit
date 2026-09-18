@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Block commits containing secrets. See docs/decisions.md D2.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# This repository is public: a secret that lands here is disclosed on push,
+# and rewriting history does not undo that.
+
+set -euo pipefail
+
+if command -v gitleaks >/dev/null 2>&1; then
+    scan=(gitleaks)
+elif command -v nix >/dev/null 2>&1; then
+    # Slower on first run, then cached. Keeps the hook working on any machine
+    # with Nix, without requiring gitleaks to be installed system-wide.
+    scan=(nix --extra-experimental-features "nix-command flakes" run nixpkgs#gitleaks --)
+else
+    cat >&2 <<'MSG'
+pre-commit: neither gitleaks nor nix found.
+
+This repository is public and the secret scanner is the control that protects
+it. Install gitleaks before committing.
+
+To bypass deliberately (you had better be sure): git commit --no-verify
+MSG
+    exit 1
+fi
+
+exec "${scan[@]}" protect --staged --redact --verbose

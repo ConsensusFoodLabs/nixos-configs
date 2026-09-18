@@ -1,0 +1,52 @@
+# fleet-status: what is this machine actually running? (D17)
+#
+# A debugging aid, not monitoring. Nothing collects this centrally and nobody
+# reviews it on a schedule, so it must not be described as a detective control.
+{ pkgs, config, lib, ... }:
+
+let
+  flakeRef = "git+https://github.com/ConsensusFoodLabs/nixos-configs";
+
+  fleet-status = pkgs.writeShellApplication {
+    name = "fleet-status";
+    runtimeInputs = with pkgs; [ nix git jq coreutils ];
+    text = ''
+      rev=${lib.escapeShellArg (config.system.configurationRevision or "unknown")}
+
+      echo "host:        $(hostname)"
+      echo "nixos:       $(nixos-version)"
+      echo "built from:  $rev"
+
+      if [ "$rev" = "dirty" ]; then
+        echo
+        echo "WARNING: built from an uncommitted tree. This system cannot be"
+        echo "traced back to a source state. Rebuild from a pushed revision."
+      fi
+
+      echo
+      echo "upstream:"
+      if upstream=$(git ls-remote https://github.com/ConsensusFoodLabs/nixos-configs HEAD 2>/dev/null | cut -f1); then
+        echo "  main is at $upstream"
+        if [ "$upstream" = "$rev" ]; then
+          echo "  this machine is up to date"
+        else
+          echo "  this machine is NOT on the current revision"
+          echo "  update: sudo nixos-rebuild switch --flake ${flakeRef}#$(hostname)"
+        fi
+      else
+        echo "  could not reach upstream"
+      fi
+
+      echo
+      echo "packages installed outside the declared baseline:"
+      if profile=$(nix profile list 2>/dev/null) && [ -n "$profile" ]; then
+        echo "$profile" | sed 's/^/  /'
+      else
+        echo "  none"
+      fi
+    '';
+  };
+in
+{
+  environment.systemPackages = [ fleet-status ];
+}
