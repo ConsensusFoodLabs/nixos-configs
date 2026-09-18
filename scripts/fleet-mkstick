@@ -28,14 +28,18 @@ usage: fleet-mkstick <device> [--key-only] [--iso PATH] [--identity PATH]
   --iso PATH       Installer image. Default: ./result/iso/*.iso from
                    `nix build .#installer-iso`.
   --identity PATH  Administrator age key. Default: ./.admin-key.
+  --no-verify      Skip reading the image back off the stick afterwards.
+                   The read-back is slow on USB 2, and it is the check that
+                   catches a stick that took a bad write.
 MSG
     exit 2
 }
 
-device="" key_only=0 iso="" identity=""
+device="" key_only=0 iso="" identity="" verify=1
 while (($#)); do
     case "$1" in
         --key-only) key_only=1 ;;
+        --no-verify) verify=0 ;;
         --iso) iso=${2:?--iso needs a path}; shift ;;
         --identity) identity=${2:?--identity needs a path}; shift ;;
         -h | --help) usage ;;
@@ -116,6 +120,15 @@ Run 'nix build .#installer-iso' first, or pass --iso PATH."
     say "Writing $(basename "$iso") to $device"
     dd if="$iso" of="$device" bs=4M conv=fsync status=progress
     sync
+
+    # dd does not make the kernel re-read the partition table, so whatever was
+    # on this stick before is still what the kernel thinks is there — including
+    # a key partition from a previous run. Images are not all the same size: a
+    # larger one reaches past where the old key partition began, and formatting
+    # that stale partition writes a filesystem into the middle of the image.
+    # That produces a stick that boots and then fails to mount its own store.
+    partprobe "$device" 2>/dev/null || true
+    udevadm settle 2>/dev/null || true
 fi
 
 # --- the key partition -----------------------------------------------------
@@ -125,6 +138,13 @@ fi
 # hands, and it is what fleet-install destroys when it is done.
 
 say "Adding the key partition"
+# Re-read the table before looking at it, in every mode. An overlapping
+# partition cannot be *created* — sfdisk refuses ("start sector out of
+# range") — so the only way to get one is to act on a table the kernel cached
+# before the image underneath it changed. Reading it fresh is the fix; the
+# overlap check further down is a second line of defence.
+partprobe "$device" 2>/dev/null || true
+udevadm settle 2>/dev/null || true
 # The image is an isohybrid: a DOS/MBR table whose first partition starts at
 # sector 0 and covers the whole image, with the EFI partition nested *inside*
 # it. That is deliberate and it boots, but it is not a valid GPT, so GPT tools
@@ -135,7 +155,12 @@ say "Adding the key partition"
 # filesystem label. That is what lsblk reports as LABEL, not PARTLABEL.
 before=$(lsblk -rno PATH "$device" | tail -n +2 | sort)
 
-part=$(lsblk -rno PATH,LABEL "$device" | awk '$2 == "FLEETKEY" { print $1 }' | head -n1)
+# Only reuse an existing key partition when the image was left alone. After a
+# fresh write the old one is meaningless, and may now sit inside the image.
+part=""
+if ((key_only)); then
+    part=$(lsblk -rno PATH,LABEL "$device" | awk '$2 == "FLEETKEY" { print $1 }' | head -n1)
+fi
 if [[ -z $part ]]; then
     # No start or size: sfdisk puts it in the free space after the image and
     # takes what is left. --force because the overlapping isohybrid entries
@@ -154,6 +179,22 @@ carry the key on a second stick — fleet-install searches all removable media."
     [[ -n $part ]] || die "the key partition did not appear after partprobe"
 fi
 
+# Structural guard against the failure above: partition 1 of an isohybrid
+# starts at sector 0 and spans the image, so anything starting before it ends
+# is inside the image. Refuse rather than corrupt it.
+sysname() { basename "$(readlink -f "$1")"; }
+image_end=$(cat "/sys/class/block/$(sysname "$(lsblk -rno PATH,TYPE "$device" |
+    awk '$2 == "part" { print $1; exit }')")/size" 2>/dev/null || echo 0)
+key_start=$(cat "/sys/class/block/$(sysname "$part")/start" 2>/dev/null || echo 0)
+
+if ((key_start > 0 && image_end > 0 && key_start < image_end)); then
+    die "refusing to format $part: it starts at sector $key_start, inside the
+installer image, which ends at sector $image_end. Formatting it would corrupt
+the image and the stick would fail to mount its own store at boot.
+
+Rewrite the stick from scratch (without --key-only)."
+fi
+
 mkfs.vfat -n FLEETKEY "$part" >/dev/null || die "could not format $part"
 
 mnt=$(mktemp -d)
@@ -166,6 +207,27 @@ sync
 # is discovered standing in front of the laptop.
 cmp -s "$key" "$mnt/fleet-admin-key.txt" || die "the key did not copy correctly"
 umount "$mnt"
+
+# Read the image back off the stick. A stick that silently took a bad write is
+# otherwise discovered at the laptop, two reboots later — and that is exactly
+# how the stale-partition corruption above showed up.
+#
+# Everything is compared except bytes 440-511, the MBR partition table, which
+# appending the key partition is supposed to change. The boot code in front of
+# it is compared, so a short or failed write is still caught.
+if ((!key_only)) && ((verify)); then
+    say "Verifying the image on $device"
+    iso_size=$(stat -c%s "$iso")
+    if ! cmp -s -n 440 "$device" "$iso"; then
+        die "the boot code on $device does not match $iso. Do not boot this stick."
+    fi
+    if ! cmp -s -i 512:512 -n "$((iso_size - 512))" "$device" "$iso"; then
+        die "the image on $device does not match $iso.
+
+Something overwrote it, or the write did not complete. Do not boot this stick."
+    fi
+    echo "image on the stick matches $(basename "$iso")"
+fi
 
 say "Done"
 cat <<MSG
