@@ -170,9 +170,13 @@ recovery key from `additionalKeyFiles`. Both are tested before the install
 proceeds, and the run aborts if either fails — an escrow key that was never
 tested is not escrow.
 
-**Confirm on the first install** that the developer passphrase landed in
-keyslot 0 and the recovery key did not. `luksDump` will not tell you — it shows
-both slots identically — so test the slot directly, on the running machine:
+**Verified for `thinkpad-x1c-gen14` on 2026-09-19:** the developer passphrase
+opens keyslot 0 and the recovery key does not. Re-check this when adding a
+model, or changing `disko.nix`, because the ordering is disko's behaviour
+rather than anything this repository states.
+
+`luksDump` will not tell you — it shows both slots identically — so test the
+slot directly, on the running machine:
 
     # succeeds with the developer passphrase
     sudo cryptsetup open --test-passphrase --key-slot 0 /dev/disk/by-partlabel/disk-main-luks
@@ -182,7 +186,8 @@ both slots identically — so test the slot directly, on the running machine:
 
 `fleet-passphrase` refuses to write any slot but 0, and that is what stops a
 developer from overwriting the organization's recovery key. The protection
-assumes this ordering. If it is reversed, fix it before the machine ships.
+depends on this ordering. If it is ever reversed, fix it before the machine
+ships.
 
 The key material is written to a tmpfs under `/run/fleet-provision` for the
 length of the run and shredded on exit, success or failure. It never reaches a

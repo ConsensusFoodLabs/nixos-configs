@@ -616,7 +616,9 @@ developer's chosen passphrase, because it holds the recovery keyslot — so
 there is no reason to insist on one it knows.
 
 `fleet-passphrase` writes keyslot 0 only, and refuses unless the passphrase
-given opens keyslot 0. Otherwise a developer holding the recovery key could
+given opens keyslot 0. Confirmed on the first provisioned machine
+(2026-09-19): the developer passphrase opens slot 0 and the recovery key does
+not, so the refusal is doing what it claims. Otherwise a developer holding the recovery key could
 move it into slot 0 and quietly interfere with escrow. `fleet-passwd` persists
 the hash `passwd` produced into `/var/lib/fleet/<user>.passwd`, which is what
 makes the change survive the next `nixos-rebuild` under
