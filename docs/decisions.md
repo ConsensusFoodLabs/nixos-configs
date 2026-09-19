@@ -710,6 +710,14 @@ are fixed at build time, in the nix store, where the caller cannot reach them.
 Had it forwarded `"$@"` to `nixos-rebuild`, the owner could have passed their
 own `--flake` and had arbitrary configuration activated as root.
 
+**`--refresh`, which is not a detail:** Nix caches the resolution of a
+`git+https` flake reference for `tarball-ttl` — one hour by default — so an
+update run shortly after a merge will otherwise rebuild the revision it
+resolved last time and report success. This was found the hard way: a laptop
+reported `configurationRevision` two commits behind `main` immediately after a
+rebuild that appeared to work. `fleet-update` always passes `--refresh`, and
+the by-hand command in `docs/operations.md` shows it.
+
 **What it does grant:** the ability to activate, as root, whatever is on the
 tracked branch, at a time of the owner's choosing. That is the pull model
 working as designed (D6) — but it does mean the branch, not the `sudo` rule, is

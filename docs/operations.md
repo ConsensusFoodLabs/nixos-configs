@@ -16,9 +16,18 @@ It needs no administrator rights: most people holding a laptop are not in
 not get updated. The owner is allowed to run one fixed program as root, which
 takes no arguments — see D30 for why that detail matters.
 
-The equivalent by hand, if you are an administrator and want to see it:
+The equivalent by hand, if you are an administrator and want to see it —
+note `--refresh`:
 
-    sudo nixos-rebuild switch --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#$(hostname)
+    sudo nixos-rebuild switch --refresh \
+      --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#$(hostname)
+
+**Without `--refresh` you may quietly rebuild an old revision.** Nix caches the
+resolution of a `git+https` flake reference for `tarball-ttl`, one hour by
+default, so a rebuild shortly after a merge can reuse what it resolved last
+time and report success having changed nothing. `fleet-update` always passes
+it. If a rebuild appears to have done nothing, check `fleet-status`: it
+compares the running revision against `git ls-remote`, which is not cached.
 
 The flake reference lives in one place — `fleet.repoUrl` in
 `modules/fleet/default.nix` — so switching to a release branch or a

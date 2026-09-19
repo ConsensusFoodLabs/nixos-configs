@@ -22,7 +22,13 @@ let
     name = "fleet-do-update";
     runtimeInputs = [ config.system.build.nixos-rebuild ];
     text = ''
-      exec nixos-rebuild switch --flake ${lib.escapeShellArg target}
+      # --refresh is not optional here. Nix caches the resolution of a
+      # git+https flake reference for tarball-ttl, one hour by default, so
+      # without it an update run minutes after a merge silently rebuilds the
+      # revision it saw last time and reports success. An update command that
+      # can apply a stale revision without saying so is worse than no update
+      # command.
+      exec nixos-rebuild switch --refresh --flake ${lib.escapeShellArg target}
     '';
   };
 
