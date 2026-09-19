@@ -11,7 +11,7 @@ let
   inherit (person) active;
 in
 {
-  imports = [ ./fleet-status.nix ./fleet-credentials.nix ];
+  imports = [ ./fleet-status.nix ./fleet-credentials.nix ./fleet-update.nix ];
 
   options.fleet = {
     user = lib.mkOption {
@@ -20,6 +20,25 @@ in
       description = ''
         Account name of the person this machine is assigned to. Shared modules
         refer to this rather than hardcoding a name (D11).
+      '';
+    };
+
+    repoUrl = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      description = ''
+        Where machines fetch their configuration. Defined once so that moving
+        to a release branch or a self-hosted mirror is a one-line change (D7).
+      '';
+    };
+
+    flakeRef = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      description = ''
+        repoUrl as a flake reference. git+https rather than github: because the
+        latter goes through api.github.com, which rate-limits unauthenticated
+        requests per IP — an office full of laptops shares one (D7).
       '';
     };
 
@@ -38,6 +57,8 @@ in
     {
       fleet.user = owner;
       fleet.admin = person.admin;
+      fleet.repoUrl = "https://github.com/ConsensusFoodLabs/nixos-configs";
+      fleet.flakeRef = "git+" + config.fleet.repoUrl;
 
       # Referential integrity. Nix is lazy, so a device pointing at a person
       # who does not exist can evaluate fine and only fail somewhere

@@ -693,6 +693,31 @@ right default, with a flag to keep the key for back-to-back provisioning.
 
 ---
 
+## D30 — Updating does not require administrator rights
+
+`fleet-update` applies the fleet configuration without `sudo`, through a narrow
+`sudo` rule granting the machine's owner one fixed program.
+
+**Why:** administrator rights are assigned per person and most people holding a
+laptop will not have them (D12). If updating needed `wheel`, either everyone
+gets `wheel` — making D12 meaningless — or machines stop being updated. Neither
+is acceptable, and the second is the likelier.
+
+**The argument detail, which is the whole security of it:** a sudoers rule
+naming a command with no arguments permits *any* arguments. So the privileged
+half takes none and ignores any it is given; the flake reference and hostname
+are fixed at build time, in the nix store, where the caller cannot reach them.
+Had it forwarded `"$@"` to `nixos-rebuild`, the owner could have passed their
+own `--flake` and had arbitrary configuration activated as root.
+
+**What it does grant:** the ability to activate, as root, whatever is on the
+tracked branch, at a time of the owner's choosing. That is the pull model
+working as designed (D6) — but it does mean the branch, not the `sudo` rule, is
+the thing that decides what runs as root on every laptop. Branch protection
+(D23) matters more now than it did before this existed.
+
+---
+
 ## Open, non-blocking
 
 - **Fingerprint reader.** The sensor is Synaptics `06cb:019f` (not Goodix as

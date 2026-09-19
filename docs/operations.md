@@ -5,13 +5,24 @@ provisioned yet, so none of it has been exercised on real hardware.
 
 ## Updating
 
+    fleet-update
+
+No `sudo`, and no arguments to remember or mistype. Laptops currently track
+`main`, so an update picks up whatever has been merged (D6). There is no
+automatic update timer — updates are something a person runs.
+
+It needs no administrator rights: most people holding a laptop are not in
+`wheel` (D12), and a fleet only administrators can update is a fleet that does
+not get updated. The owner is allowed to run one fixed program as root, which
+takes no arguments — see D30 for why that detail matters.
+
+The equivalent by hand, if you are an administrator and want to see it:
+
     sudo nixos-rebuild switch --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#$(hostname)
 
-Laptops currently track `main`, so an update picks up whatever has been merged
-(D6). There is no automatic update timer — updates are something a person runs.
-
-The flake reference is deliberately kept in one place so that switching to a
-release branch or a self-hosted mirror later is a one-line change (D7).
+The flake reference lives in one place — `fleet.repoUrl` in
+`modules/fleet/default.nix` — so switching to a release branch or a
+self-hosted mirror later is a one-line change (D7).
 
 ## Changing your credentials
 

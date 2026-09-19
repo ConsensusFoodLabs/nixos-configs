@@ -37,6 +37,17 @@ highest-privilege path in the repository. Granting root must require the tighter
 approver group, and it must be legible in git history, because that history is
 the access-control evidence.
 
+### What a non-administrator can do as root
+
+Two things, each a single fixed program reached through a narrow `sudo` rule:
+change their own credentials (`fleet-passwd`, `fleet-passphrase`) and apply the
+fleet configuration (`fleet-update`). None of them takes arguments from the
+caller.
+
+That last one means the tracked branch decides what runs as root on every
+laptop, which is the intended model — and the reason review of that branch is
+the control that matters, not the `sudo` rule (D23, D30).
+
 ### The administrator age key
 
 Holding an administrator age identity is a distinct and higher privilege from

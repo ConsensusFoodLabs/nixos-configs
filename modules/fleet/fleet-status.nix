@@ -5,7 +5,7 @@
 { pkgs, config, lib, ... }:
 
 let
-  flakeRef = "git+https://github.com/ConsensusFoodLabs/nixos-configs";
+  inherit (config.fleet) repoUrl flakeRef;
 
   fleet-status = pkgs.writeShellApplication {
     name = "fleet-status";
@@ -25,13 +25,13 @@ let
 
       echo
       echo "upstream:"
-      if upstream=$(git ls-remote https://github.com/ConsensusFoodLabs/nixos-configs HEAD 2>/dev/null | cut -f1); then
+      if upstream=$(git ls-remote ${repoUrl} HEAD 2>/dev/null | cut -f1); then
         echo "  main is at $upstream"
         if [ "$upstream" = "$rev" ]; then
           echo "  this machine is up to date"
         else
           echo "  this machine is NOT on the current revision"
-          echo "  update: sudo nixos-rebuild switch --flake ${flakeRef}#$(hostname)"
+          echo "  update: run fleet-update"
         fi
       else
         echo "  could not reach upstream"

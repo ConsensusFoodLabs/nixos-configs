@@ -43,7 +43,7 @@ devices.
 
 Update a laptop to the current fleet configuration:
 
-    sudo nixos-rebuild switch --flake git+https://github.com/ConsensusFoodLabs/nixos-configs#$(hostname)
+    fleet-update
 
 Change your own credentials on a laptop:
 
