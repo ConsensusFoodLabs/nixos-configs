@@ -53,10 +53,13 @@ let
 
   fleetPasswd = pkgs.writeShellApplication {
     name = "fleet-passwd";
-    runtimeInputs = [ pkgs.shadow pkgs.sudo ];
+    # Deliberately NOT pkgs.shadow: that would put the plain store passwd on
+    # PATH ahead of the setuid wrapper, and it cannot write /etc/shadow. Only
+    # the wrapper can, so name it by path.
+    runtimeInputs = [ pkgs.sudo ];
     text = ''
       echo "Changing the login password for $USER."
-      passwd
+      ${config.security.wrapperDir}/passwd
       sudo -n ${persistPassword}/bin/fleet-persist-password
     '';
   };
@@ -121,6 +124,28 @@ in
 {
   config = lib.mkIf active {
     environment.systemPackages = [ fleetPasswd fleetPassphrase ];
+
+    # NixOS installs the setuid passwd wrapper only when users.mutableUsers is
+    # true (nixos/modules/programs/shadow.nix wraps chsh and passwd in an
+    # `optionalAttrs config.users.mutableUsers`). We set it false, so without
+    # this there is no setuid passwd at all and an unprivileged `passwd` dies
+    # with "Permission denied" trying to write /etc/shadow.
+    #
+    # Upstream omits it because immutable users are not supposed to change
+    # their own passwords. We do want that (D27) — we just want the change to
+    # survive the next rebuild, which is what fleet-passwd adds on top. So the
+    # wrapper has to come back.
+    #
+    # `passwd` without arguments only ever changes the caller's own password,
+    # and it still runs the full PAM exchange: the old password is verified and
+    # quality rules apply. That is why fleet-passwd drives passwd rather than
+    # hashing anything itself.
+    security.wrappers.passwd = {
+      setuid = true;
+      owner = "root";
+      group = "root";
+      source = "${config.security.loginDefs.package.out}/bin/passwd";
+    };
 
     # Narrow, explicit grants. The owner may run exactly these two programs as
     # root and nothing else; this is how a non-administrator changes their own
