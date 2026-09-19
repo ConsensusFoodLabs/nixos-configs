@@ -107,11 +107,20 @@ let
       [ "''${#new}" -ge 12 ] || { echo "use at least 12 characters" >&2; exit 1; }
       printf '%s' "$new" > "$tmp/new"
 
-      # --key-slot names where the NEW key lands; --key-file authorises with
-      # the old one. Together with the slot-0 test above, this replaces slot 0
-      # and can reach no other slot.
+      # Argument order matters and is not obvious:
+      #
+      #   cryptsetup luksChangeKey [<options>] <device> [<new key file>]
+      #
+      # The NEW key is the positional argument; --key-file supplies the OLD
+      # one. There is no --new-keyfile for this action — that flag belongs to
+      # luksAddKey, and passing it here fails with "Option --new-keyfile is
+      # not allowed with luksChangeKey action".
+      #
+      # With --key-slot, cryptsetup requires the given passphrase to open that
+      # slot and overwrites exactly it, which is the guarantee this tool rests
+      # on: slot 1, holding the recovery key, cannot be reached from here.
       cryptsetup luksChangeKey --key-slot 0 \
-        --key-file "$tmp/old" --new-keyfile "$tmp/new" "$dev"
+        --key-file "$tmp/old" "$dev" "$tmp/new"
 
       echo "disk passphrase changed. The recovery key still works and is unchanged."
     '';
