@@ -94,8 +94,13 @@ you, that is a conversation, not a local edit.
 1. Previous generation from the boot menu (above).
 2. If the LUKS passphrase is the problem, the machine's recovery key unlocks
    it. Ask an administrator: it is in `fleet/secrets/<host>.yaml`, encrypted,
-   and they read it with `sops decrypt` (D5, D24). One key per machine, and it
-   is unaffected by anything you did with `fleet-passphrase`.
+   and an administrator reads it, from a checkout of this repository, with
+
+       SOPS_AGE_KEY_FILE=$PWD/.admin-key \
+         sops decrypt --extract '["luks_recovery_key"]' fleet/secrets/<host>.yaml
+
+   (D5, D24). One key per machine, and it is unaffected by anything you did
+   with `fleet-passphrase`.
 3. If networking is broken in every generation, the office has a USB-C Ethernet
    adapter (D19).
 4. Reinstall from `docs/provisioning.md`. The machine's configuration is in the

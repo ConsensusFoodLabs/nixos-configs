@@ -61,15 +61,21 @@ Then link it in, once, on each workstation you use:
     direnv allow        # if you use direnv
 
 `.admin-key` at the repository root is how everything here refers to your
-identity: `fleet-mksecrets` uses it, and `.envrc` points `sops` at it so plain
-`sops decrypt` works anywhere in the repository. It is gitignored, it is
+identity: `fleet-mksecrets` uses it, and `.envrc` exports `SOPS_AGE_KEY_FILE`
+from it *if you use direnv*. direnv is not a dependency of this repository, so
+assume it is absent and pass the variable explicitly:
+
+    SOPS_AGE_KEY_FILE=$PWD/.admin-key sops decrypt fleet/secrets/<host>.yaml
+
+Without it, `sops` searches its own defaults — `~/.config/sops/age/keys.txt`,
+your SSH keys — finds nothing, and reports a list of locations that does not
+include `.admin-key`.
+
+It is gitignored, it is
 normally a symlink, and each administrator decides what is behind it — the
 repository never learns where anyone keeps their key. The pre-commit hook
 refuses it by path, because as a symlink git would store only the link target
 and the secret scanner would see nothing wrong.
-
-Without it, `sops` falls back to its own default (`~/.config/sops/age/keys.txt`)
-and behaviour differs between machines for no reason.
 
 Losing every administrator identity means losing every machine's recovery key,
 with no way to regenerate it from anything in this repository. That is the

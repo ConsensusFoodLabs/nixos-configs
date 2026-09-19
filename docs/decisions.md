@@ -564,8 +564,10 @@ anything. Adding a second administrator is also the backup strategy.
 at the repository root — gitignored, and normally a symlink to removable media.
 The repository names one path; each administrator decides what is behind it and
 the repository never learns where anyone keeps their key. `.envrc` exports
-`SOPS_AGE_KEY_FILE` from it so plain `sops` commands work anywhere in the tree,
-and `fleet-mksecrets` sets the same variable for people not using direnv.
+`SOPS_AGE_KEY_FILE` from it *for direnv users only* — direnv is not a
+dependency of this repository and was not in fact installed on the first
+administrator's workstation, so documented `sops` commands pass the variable
+explicitly rather than assuming it. `fleet-mksecrets` sets it itself.
 
 Without a single agreed path, `sops` silently falls back to its own default
 (`~/.config/sops/age/keys.txt`) and every workstation behaves differently for

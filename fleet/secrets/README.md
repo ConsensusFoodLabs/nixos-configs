@@ -26,10 +26,22 @@ each machine's key material was created or rotated (D24).
 
 ## Reading them
 
-    sops decrypt fleet/secrets/<hostname>.yaml
+    SOPS_AGE_KEY_FILE=$PWD/.admin-key sops decrypt fleet/secrets/<hostname>.yaml
 
-Requires an administrator age identity. `fleet-install` does this itself
-during provisioning; you should rarely need to.
+Or one value at a time, which is usually what you want — there is no reason to
+put the whole file on your screen to read one recovery key:
+
+    SOPS_AGE_KEY_FILE=$PWD/.admin-key \
+      sops decrypt --extract '["luks_recovery_key"]' fleet/secrets/<hostname>.yaml
+
+Set `SOPS_AGE_KEY_FILE` explicitly, or `sops` searches its own default
+locations (`~/.config/sops/age/keys.txt`, your SSH keys) and fails with a long
+list of places it looked, none of which is `.admin-key`. If you use direnv,
+`.envrc` exports it for you and you can drop the prefix — but direnv is not a
+dependency of this repository, so the commands here spell it out.
+
+`fleet-install` handles this itself during provisioning; you should rarely need
+to read these by hand.
 
 ## Rotating them
 
