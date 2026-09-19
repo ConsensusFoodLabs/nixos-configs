@@ -28,11 +28,14 @@ let
 
   fleetUpdate = pkgs.writeShellApplication {
     name = "fleet-update";
-    runtimeInputs = [ pkgs.sudo ];
+    # By path, not via pkgs.sudo on PATH: the store sudo is not setuid and
+    # refuses to run, and writeShellApplication would put it ahead of the
+    # wrapper that is.
+    runtimeInputs = [ ];
     text = ''
       echo "Updating ${hostname} from ${config.fleet.flakeRef}"
       echo
-      sudo -n ${doUpdate}/bin/fleet-do-update
+      ${config.security.wrapperDir}/sudo -n ${doUpdate}/bin/fleet-do-update
     '';
   };
 in

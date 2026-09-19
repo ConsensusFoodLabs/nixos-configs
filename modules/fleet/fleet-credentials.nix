@@ -53,14 +53,16 @@ let
 
   fleetPasswd = pkgs.writeShellApplication {
     name = "fleet-passwd";
-    # Deliberately NOT pkgs.shadow: that would put the plain store passwd on
-    # PATH ahead of the setuid wrapper, and it cannot write /etc/shadow. Only
-    # the wrapper can, so name it by path.
-    runtimeInputs = [ pkgs.sudo ];
+    # Neither pkgs.shadow nor pkgs.sudo: both would put a plain store binary on
+    # PATH ahead of its setuid wrapper, and neither store binary can do the
+    # job — passwd cannot write /etc/shadow, and sudo refuses to run at all
+    # ("must be owned by uid 0 and have the setuid bit set"). Only the
+    # wrappers are setuid, so both are named by path.
+    runtimeInputs = [ ];
     text = ''
       echo "Changing the login password for $USER."
       ${config.security.wrapperDir}/passwd
-      sudo -n ${persistPassword}/bin/fleet-persist-password
+      ${config.security.wrapperDir}/sudo -n ${persistPassword}/bin/fleet-persist-password
     '';
   };
 
@@ -117,8 +119,11 @@ let
 
   fleetPassphrase = pkgs.writeShellApplication {
     name = "fleet-passphrase";
-    runtimeInputs = [ pkgs.sudo ];
-    text = ''sudo -n ${changePassphrase}/bin/fleet-change-passphrase'';
+    # By path, for the reason given above: the store sudo is not setuid.
+    runtimeInputs = [ ];
+    text = ''
+      ${config.security.wrapperDir}/sudo -n ${changePassphrase}/bin/fleet-change-passphrase
+    '';
   };
 in
 {
