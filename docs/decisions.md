@@ -1240,12 +1240,29 @@ their own config; they change the machine's `desktop`. This is the same
 principle as D33 — the desktop is a fleet attribute because things hang off
 it — extended to the home configuration that goes with it.
 
-**On the i3 config being shared.** The workspace scheme and keybindings in
-`modules/home-i3/etc/i3/config` are one person's habits, and that is fine for
-a default. It is a starting point, not a house style. The terminal binding
-was changed back to `i3-sensible-terminal` to make this concrete: it honours
-`$TERMINAL`, which the layer sets with `mkDefault`, so changing your terminal
-is one line in your own file rather than a fork of the shared config.
+**On the i3 config being shared.** The first version of this shipped one
+person's habits as the fleet default — named workspaces, an extra mode on
+`$mod+g`, non-standard focus keys. That is the wrong thing for a default to
+be: a default is read by people who have not agreed to it, and every
+idiosyncrasy in it is a thing a newcomer has to discover is not i3.
+
+`modules/home-i3/etc/i3/config` is now deliberately close to stock: numbered
+workspaces, standard bindings, no custom modes, `h/j/k/l` for focus because
+that is what almost everyone binds anyway. The test it is meant to pass is
+that `man i3` describes it. `users/oleg/etc/i3/config` holds the opinionated
+one and overrides it, which is the worked example of the override path:
+
+```nix
+home.file.".config/i3/config".source = ./etc/i3/config;
+```
+
+No `mkForce` — the shared layer uses `mkDefault`, so a plain assignment wins.
+
+The terminal binding is `i3-sensible-terminal`, which honours `$TERMINAL`,
+set by the layer with `mkDefault`. Changing your terminal is therefore one
+line in your own file rather than a fork of the shared config — the cheap
+override should exist for the common case, so that forking the whole file is
+reserved for people who genuinely want something different.
 
 **Verified as a refactor, not a rewrite.** The pre-refactor home-manager
 generation was built from the previous commit and diffed against the new one.

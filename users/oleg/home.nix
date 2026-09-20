@@ -51,6 +51,15 @@ let
   };
 in
 {
+  # My own i3 configuration, replacing the conventional default from
+  # modules/home-i3. That layer sets this with lib.mkDefault, so this plain
+  # assignment wins with no mkForce (D38).
+  #
+  # What is different: named workspaces (web/code/term, an aux bank, plan and
+  # social), a `go` mode on $mod+g for reaching them, non-standard focus keys,
+  # and per-application workspace assignments.
+  home.file.".config/i3/config".source = ./etc/i3/config;
+
   home.packages = with pkgs; [
     # jujutsu and claude-code are not listed here: both are in the shared
     # baseline in profiles/engineering.nix, so every machine gets them.

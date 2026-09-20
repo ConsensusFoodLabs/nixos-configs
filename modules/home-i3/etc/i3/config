@@ -1,8 +1,17 @@
-# i3 configuration for oleg.
+# A conventional i3 configuration.
 #
-# Ported from mingaleg/nixos-config etc/i3/config, with the parts that only
-# worked on Arch replaced: no /usr/lib paths, no xbacklight assumptions, and
-# no vendored rofi theme tree.
+# This is the default every i3 machine gets, and it is deliberately close to
+# stock i3: numbered workspaces, standard bindings, no modes of its own. The
+# point is that someone who has used i3 before can sit down and work, and
+# someone who has not can read `man i3` and have it describe this file.
+#
+# Personal habits do not belong here. To use your own, put it in
+# users/<name>/etc/i3/config and point at it from your home.nix:
+#
+#   home.file.".config/i3/config".source = ./etc/i3/config;
+#
+# The shared layer sets this with lib.mkDefault, so that override needs no
+# mkForce. users/oleg is a worked example.
 #
 # Screen locking is NOT configured here. xss-lock and xautolock are declared
 # at the system level in profiles/engineering.nix, because a lock this file
@@ -13,16 +22,28 @@ set $mod Mod4
 
 font pango:monospace 8
 focus_follows_mouse no
+default_border pixel 1
+default_floating_border pixel 1
 
 # XDG autostart
 exec --no-startup-id dex --autostart --environment i3
 
-# Network applet and notification daemon. Both are user services on this
-# machine, started by graphical-session.target, so they are not exec'd here.
+# Compositor, notifications, the network applet and the polkit agent are
+# services, not exec lines — see modules/home-i3 and profiles/engineering.nix.
 
-# The compositor is a user service, not an exec here. i3 re-runs exec_always
-# on every reload and restart, and the second picom exits with "Another
-# composite manager is already running".
+# Terminal. i3-sensible-terminal honours $TERMINAL, which modules/home-i3
+# sets; override TERMINAL in your own home.nix to change it.
+bindsym $mod+Return exec i3-sensible-terminal
+bindsym $mod+Shift+q kill
+
+# Launcher, emoji picker, power menu.
+bindsym $mod+d exec --no-startup-id rofi -show drun
+bindsym $mod+i exec --no-startup-id rofi -modi emoji -show emoji
+bindsym $mod+Shift+e exec --no-startup-id rofi-powermenu
+
+# Lock now. Goes through logind so xss-lock runs the locker and the session is
+# marked locked; running the locker directly would leave logind disagreeing.
+bindsym $mod+Shift+x exec --no-startup-id loginctl lock-session
 
 # Volume. wpctl, not pactl or amixer: the machine runs PipeWire with
 # WirePlumber, and wpctl is the one that is always present.
@@ -44,49 +65,33 @@ bindsym Print       exec --no-startup-id screenshot screen
 bindsym Shift+Print exec --no-startup-id screenshot select
 bindsym $mod+Print  exec --no-startup-id screenshot window
 
-# Lock now. Goes through logind so xss-lock runs the locker and the session is
-# marked locked; running i3lock directly would leave logind disagreeing.
-bindsym $mod+Shift+x exec --no-startup-id loginctl lock-session
-
 floating_modifier $mod
 tiling_drag modifier titlebar
 
-# i3-sensible-terminal, which tries $TERMINAL first. modules/home-i3 sets
-# TERMINAL, and home-manager writes it into ~/.profile, which the X session
-# wrapper sources — so overriding TERMINAL in a personal home.nix changes the
-# terminal without anyone editing this shared file.
-bindsym $mod+Return exec i3-sensible-terminal
-bindsym $mod+Shift+q kill
-
-# Launcher and power menu. Plain commands on PATH, installed from
-# users/oleg/home.nix, rather than scripts under ~/.config.
-bindsym $mod+d exec --no-startup-id rofi -show drun
-bindsym $mod+i exec --no-startup-id rofi -modi emoji -show emoji
-bindsym $mod+Shift+e exec --no-startup-id rofi-powermenu
-
-# change focus
+# Focus. h/j/k/l as in vim — left, down, up, right. i3's own defaults are
+# j/k/l/semicolon, which almost nobody keeps.
 bindsym $mod+h focus left
-bindsym $mod+j focus up
-bindsym $mod+k focus down
+bindsym $mod+j focus down
+bindsym $mod+k focus up
 bindsym $mod+l focus right
 
-bindsym $mod+Left focus left
-bindsym $mod+Down focus down
-bindsym $mod+Up focus up
+bindsym $mod+Left  focus left
+bindsym $mod+Down  focus down
+bindsym $mod+Up    focus up
 bindsym $mod+Right focus right
 
-# move focused window
 bindsym $mod+Shift+h move left
-bindsym $mod+Shift+j move up
-bindsym $mod+Shift+k move down
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
 bindsym $mod+Shift+l move right
 
-bindsym $mod+Shift+Left move left
-bindsym $mod+Shift+Down move down
-bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Left  move left
+bindsym $mod+Shift+Down  move down
+bindsym $mod+Shift+Up    move up
 bindsym $mod+Shift+Right move right
 
-bindsym $mod+Shift+5 split h
+# Split. $mod+b rather than i3's $mod+h, which is taken by focus-left above.
+bindsym $mod+b split h
 bindsym $mod+v split v
 
 bindsym $mod+f fullscreen toggle
@@ -96,26 +101,46 @@ bindsym $mod+w layout tabbed
 bindsym $mod+e layout toggle split
 
 bindsym $mod+Shift+space floating toggle
-bindsym $mod+Shift+t sticky toggle
 bindsym $mod+space focus mode_toggle
 bindsym $mod+a focus parent
 
-# Workspaces
-set $ws_web "1:web"
-set $ws_code "2:code"
-set $ws_term "3:term"
-set $ws0 "50:aux_0"
-set $ws1 "51:aux_1"
-set $ws2 "52:aux_2"
-set $ws3 "53:aux_3"
-set $ws4 "54:aux_4"
-set $ws5 "55:aux_5"
-set $ws6 "56:aux_6"
-set $ws7 "57:aux_7"
-set $ws8 "58:aux_8"
-set $ws9 "59:aux_9"
-set $ws_plan "98:plan"
-set $ws_social "99:social"
+# Workspaces, numbered 1-10.
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+set $ws5 "5"
+set $ws6 "6"
+set $ws7 "7"
+set $ws8 "8"
+set $ws9 "9"
+set $ws10 "10"
+
+bindsym $mod+1 workspace number $ws1
+bindsym $mod+2 workspace number $ws2
+bindsym $mod+3 workspace number $ws3
+bindsym $mod+4 workspace number $ws4
+bindsym $mod+5 workspace number $ws5
+bindsym $mod+6 workspace number $ws6
+bindsym $mod+7 workspace number $ws7
+bindsym $mod+8 workspace number $ws8
+bindsym $mod+9 workspace number $ws9
+bindsym $mod+0 workspace number $ws10
+
+bindsym $mod+Shift+1 move container to workspace number $ws1
+bindsym $mod+Shift+2 move container to workspace number $ws2
+bindsym $mod+Shift+3 move container to workspace number $ws3
+bindsym $mod+Shift+4 move container to workspace number $ws4
+bindsym $mod+Shift+5 move container to workspace number $ws5
+bindsym $mod+Shift+6 move container to workspace number $ws6
+bindsym $mod+Shift+7 move container to workspace number $ws7
+bindsym $mod+Shift+8 move container to workspace number $ws8
+bindsym $mod+Shift+9 move container to workspace number $ws9
+bindsym $mod+Shift+0 move container to workspace number $ws10
+
+# Move a whole workspace between monitors.
+bindsym $mod+Shift+greater move workspace to output right
+bindsym $mod+Shift+less    move workspace to output left
 
 bindsym $mod+Shift+c reload
 bindsym $mod+Shift+r restart
@@ -126,9 +151,9 @@ mode "resize" {
         bindsym k resize shrink height 10 px or 10 ppt
         bindsym l resize grow width 10 px or 10 ppt
 
-        bindsym Left resize shrink width 10 px or 10 ppt
-        bindsym Down resize grow height 10 px or 10 ppt
-        bindsym Up resize shrink height 10 px or 10 ppt
+        bindsym Left  resize shrink width 10 px or 10 ppt
+        bindsym Down  resize grow height 10 px or 10 ppt
+        bindsym Up    resize shrink height 10 px or 10 ppt
         bindsym Right resize grow width 10 px or 10 ppt
 
         bindsym Return mode "default"
@@ -136,48 +161,6 @@ mode "resize" {
         bindsym $mod+r mode "default"
 }
 bindsym $mod+r mode "resize"
-
-mode "go" {
-        bindsym w workspace number $ws_web; mode "default"
-        bindsym c workspace number $ws_code; mode "default"
-        bindsym t workspace number $ws_term; mode "default"
-        bindsym 0 workspace number $ws0; mode "default"
-        bindsym 1 workspace number $ws1; mode "default"
-        bindsym 2 workspace number $ws2; mode "default"
-        bindsym 3 workspace number $ws3; mode "default"
-        bindsym 4 workspace number $ws4; mode "default"
-        bindsym 5 workspace number $ws5; mode "default"
-        bindsym 6 workspace number $ws6; mode "default"
-        bindsym 7 workspace number $ws7; mode "default"
-        bindsym 8 workspace number $ws8; mode "default"
-        bindsym 9 workspace number $ws9; mode "default"
-        bindsym p workspace number $ws_plan; mode "default"
-        bindsym s workspace number $ws_social; mode "default"
-
-        bindsym Shift+w move container to workspace number $ws_web; mode "default"
-        bindsym Shift+c move container to workspace number $ws_code; mode "default"
-        bindsym Shift+t move container to workspace number $ws_term; mode "default"
-        bindsym Shift+0 move container to workspace number $ws0; mode "default"
-        bindsym Shift+1 move container to workspace number $ws1; mode "default"
-        bindsym Shift+2 move container to workspace number $ws2; mode "default"
-        bindsym Shift+3 move container to workspace number $ws3; mode "default"
-        bindsym Shift+4 move container to workspace number $ws4; mode "default"
-        bindsym Shift+5 move container to workspace number $ws5; mode "default"
-        bindsym Shift+6 move container to workspace number $ws6; mode "default"
-        bindsym Shift+7 move container to workspace number $ws7; mode "default"
-        bindsym Shift+8 move container to workspace number $ws8; mode "default"
-        bindsym Shift+9 move container to workspace number $ws9; mode "default"
-        bindsym Shift+p move container to workspace number $ws_plan; mode "default"
-        bindsym Shift+s move container to workspace number $ws_social; mode "default"
-
-        bindsym Shift+greater move workspace to output right; mode "default"
-        bindsym Shift+less move workspace to output left; mode "default"
-
-        bindsym Return mode "default"
-        bindsym Escape mode "default"
-        bindsym $mod+r mode "default"
-}
-bindsym $mod+g mode "go"
 
 bar {
         status_command i3blocks
@@ -189,16 +172,3 @@ bar {
                 separator  #282B31
         }
 }
-
-# Remove titlebars
-for_window [class="Alacritty"] border pixel 1
-for_window [class="com.mitchellh.ghostty"] border pixel 1
-for_window [class="Slack"] border pixel 1
-for_window [class="TelegramDesktop"] border pixel 1
-for_window [class="Google-chrome"] border none
-
-# Workspace assignments
-assign [class="Google-chrome"] $ws_web
-assign [class="Code"] $ws_code
-assign [class="Slack"] $ws_social
-assign [class="TelegramDesktop"] $ws_social
