@@ -1,0 +1,156 @@
+# Replace a machine's organization recovery key, in the safe order.
+#
+# An administrator task, run on the machine, as root. Rotating the value in
+# fleet/secrets/<host>.yaml changes a file; this changes the disk. Until this
+# has run, a rotated secrets file describes a key that does not open the
+# machine, which is worse than not rotating at all (docs/provisioning.md).
+#
+#     sudo fleet-rotate-recovery
+#
+# The order is enrol, test, then remove. Never the other way round: cryptsetup
+# will happily destroy the last key that opens a disk, and there is no undo.
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'MSG'
+usage: fleet-rotate-recovery [--device DEV] [--slot N]
+
+  --device DEV  LUKS device. Defaults to this machine's, baked in at build.
+  --slot N      Keyslot to remove afterwards. Default: inferred, and always
+                confirmed before anything is destroyed.
+
+Reads the new recovery key from a prompt. Get it on an administrator
+workstation with:
+
+    SOPS_AGE_KEY_FILE=$PWD/.admin-key \
+      sops decrypt --extract '["luks_recovery_key"]' fleet/secrets/<host>.yaml
+MSG
+    exit 2
+}
+
+device="" old_slot=""
+while (($#)); do
+    case "$1" in
+        --device) device=${2:?--device needs a value}; shift ;;
+        --slot) old_slot=${2:?--slot needs a value}; shift ;;
+        -h | --help) usage ;;
+        *) echo "fleet-rotate-recovery: unknown argument $1" >&2; usage ;;
+    esac
+    shift
+done
+
+die() { printf '\nfleet-rotate-recovery: %s\n' "$*" >&2; exit 1; }
+say() { printf '\n==> %s\n' "$*"; }
+
+dev=${device:-${FLEET_LUKS_DEVICE:-}}
+[[ -n $dev ]] || die "no device; pass --device"
+((EUID == 0)) || die "must run as root"
+[[ -b $dev ]] || die "$dev is not a block device"
+
+# LUKS2 keyslots, as cryptsetup reports them.
+active_slots() {
+    cryptsetup luksDump "$dev" |
+        grep -oE '^[[:space:]]+[0-9]+: luks2' | awk '{ print $1 }' | tr -d ':'
+}
+
+# Key material goes on a tmpfs and is removed however this exits. No trailing
+# newline: cryptsetup takes a key file byte for byte, and a key with a newline
+# in it cannot be typed at a boot prompt.
+tmp=$(mktemp -d /run/fleet-rotate.XXXXXX)
+chmod 700 "$tmp"
+trap 'rm -rf "$tmp"' EXIT
+
+say "Current keyslots on $dev"
+cryptsetup luksDump "$dev" | sed -n '/^Keyslots:/,/^Tokens:/p' | grep -E '^[[:space:]]+[0-9]+:' |
+    sed 's/^/  /'
+echo
+echo "  Slot 0 is the developer's passphrase and is never touched here."
+
+read -rsp "New recovery key: " new1; echo
+read -rsp "Repeat it: " new2; echo
+[[ $new1 == "$new2" ]] || die "the two entries differ"
+[[ -n $new1 ]] || die "empty"
+((${#new1} >= 16)) || die "that is too short to be a generated recovery key"
+printf '%s' "$new1" >"$tmp/new"
+
+echo
+echo "Now an existing key, to authorise adding it. The developer passphrase or"
+echo "the current recovery key will do."
+read -rsp "Existing key: " auth; echo
+printf '%s' "$auth" >"$tmp/auth"
+
+cryptsetup open --test-passphrase --key-file "$tmp/auth" "$dev" 2>/dev/null ||
+    die "that key does not open $dev; nothing has been changed"
+
+before=$(active_slots)
+
+say "Enrolling the new recovery key"
+cryptsetup luksAddKey "$dev" "$tmp/new" --key-file "$tmp/auth" ||
+    die "could not add the key; nothing has been removed"
+
+new_slot=""
+for s in $(active_slots); do
+    grep -qx "$s" <<<"$before" || { new_slot=$s; break; }
+done
+[[ -n $new_slot ]] || die "the new key was added but its slot could not be identified.
+Nothing has been removed. Inspect with: cryptsetup luksDump $dev"
+echo "  added as keyslot $new_slot"
+
+say "Testing it before anything is destroyed"
+cryptsetup open --test-passphrase --key-slot "$new_slot" --key-file "$tmp/new" "$dev" ||
+    die "the new key does not open keyslot $new_slot.
+Nothing has been removed; the old recovery key still works."
+echo "  keyslot $new_slot opens $dev"
+
+# Which slot to retire. Slot 0 is the developer's and is not ours to remove.
+if [[ -z $old_slot ]]; then
+    candidates=()
+    for s in $before; do
+        [[ $s == 0 || $s == "$new_slot" ]] && continue
+        candidates+=("$s")
+    done
+    case ${#candidates[@]} in
+        0) say "No previous recovery slot to remove"
+           echo "  keyslot $new_slot now holds the recovery key. Done."
+           exit 0 ;;
+        1) old_slot=${candidates[0]} ;;
+        *) die "more than one candidate slot (${candidates[*]}); choose with --slot" ;;
+    esac
+fi
+
+[[ $old_slot != 0 ]] || die "refusing to remove keyslot 0 — that is the developer's passphrase"
+[[ $old_slot != "$new_slot" ]] || die "refusing to remove the key just enrolled"
+grep -qx "$old_slot" <<<"$before" || die "keyslot $old_slot is not active"
+
+say "About to permanently remove keyslot $old_slot"
+cat <<MSG
+
+  keyslot $new_slot  new recovery key, tested just now
+  keyslot $old_slot  previous recovery key, to be destroyed
+  keyslot 0  developer passphrase, untouched
+
+This cannot be undone. Anyone holding the old recovery key loses access.
+
+MSG
+read -r -p "Type the slot number to confirm ($old_slot): " confirm
+[[ $confirm == "$old_slot" ]] || die "not confirmed; keyslot $old_slot is untouched"
+
+# Authorised with the NEW key on purpose: cryptsetup must accept it for real
+# before it is allowed to destroy the old one.
+cryptsetup luksKillSlot --batch-mode --key-file "$tmp/new" "$dev" "$old_slot" ||
+    die "could not remove keyslot $old_slot; it is still there"
+
+say "Done"
+remaining=$(active_slots | tr '\n' ' ')
+cat <<MSG
+
+Keyslots now active: $remaining
+
+  0            developer passphrase
+  $new_slot            recovery key, matching fleet/secrets/<host>.yaml
+
+Record that this machine's recovery key was rotated. If disko.nix still says
+the recovery key lives in slot 1 and it now lives in slot $new_slot, that comment
+is wrong for this machine.
+MSG

@@ -129,11 +129,15 @@ never run `nixos-rebuild` again. Do the real work first:
    they already had the plaintext (D1).
 
    If they held an **administrator age key**, this is the large job, not a
-   formality: they could read every machine's recovery key. Remove their public
-   key from `.sops.yaml`, run `sops updatekeys` on every file in
-   `fleet/secrets/`, rotate each machine's secrets, and re-enrol the affected
-   keyslots on machines still in the field (D25). `sops updatekeys` alone
-   changes nothing about what they already know.
+   formality: they could read every machine's recovery key. For each machine:
+   remove their public key from `.sops.yaml`, `sops updatekeys` every file in
+   `fleet/secrets/`, `fleet-mksecrets <host> --rotate`, and then
+   `sudo fleet-rotate-recovery` **on the machine itself** (D25).
+
+   The last step is the one that matters and the one that is easy to skip. The
+   first three change files; only the last changes a disk. Stopping before it
+   leaves every machine still openable with a key that person read, while the
+   repository claims otherwise.
 4. **Set `active = false`** in the inventory, by pull request. Keep the entry
    rather than deleting it — the inventory is the complete record of who has held
    access, and a deleted entry is indistinguishable from one that never existed.

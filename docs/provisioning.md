@@ -258,10 +258,72 @@ git history says when it was created.
 
     nix run .#fleet-mksecrets -- <host> --rotate
 
-This changes what the *next* install uses. A machine already in the field keeps
-the keyslots it was built with — rotation is not revocation. To make it real on
-an existing machine you must reinstall it, or remove the old keyslots by hand
-with `cryptsetup luksKillSlot`, having first enrolled the new ones.
+**This changes a file, not a machine.** Read the rest of this section before
+using it on a machine that is already in service.
+
+### What rotating does and does not do
+
+`fleet-mksecrets --rotate` generates new values and replaces
+`fleet/secrets/<host>.yaml`. It has no way to reach a laptop, and does not try.
+
+The three values then matter very differently:
+
+| Value | After rotation |
+| --- | --- |
+| `user_initial_password` | Nothing to do. Only ever used at install; the live hash is in `/var/lib/fleet/<user>.passwd`. |
+| `luks_passphrase` | Nothing to do. It is the passphrase the machine was *installed* with, and is already stale the moment the developer runs `fleet-passphrase` (D27). |
+| `luks_recovery_key` | **The repository now holds a key that does not open that disk.** |
+
+That last row is the hazard. Until the new key is enrolled on the machine, the
+repository describes escrow that does not exist: you would believe you could
+open a returned laptop, and find out otherwise at the worst possible moment.
+The key that *does* work is no longer on `main` — it is only in git history.
+
+Rotating a deployed machine and stopping there is worse than not rotating.
+
+### Making it real, on the machine
+
+    sudo fleet-rotate-recovery
+
+An administrator task, run on the laptop. It prompts for the new recovery key
+— read it on your workstation with:
+
+    SOPS_AGE_KEY_FILE=$PWD/.admin-key \
+      sops decrypt --extract '["luks_recovery_key"]' fleet/secrets/<host>.yaml
+
+then for an existing key to authorise the change (the developer passphrase or
+the current recovery key).
+
+It enrols the new key, **tests it**, and only then asks you to confirm removing
+the old slot — authorising that removal with the new key, so cryptsetup has to
+accept it for real before anything is destroyed. It will not touch keyslot 0,
+which is the developer's.
+
+Doing this by hand is possible and inadvisable: `cryptsetup luksKillSlot` will
+remove the last key that opens a disk without complaint, and there is no undo.
+
+### Afterwards
+
+The new key usually lands in a free slot rather than the one it replaced, so a
+rotated machine may hold its recovery key in slot 2 while `disko.nix` still
+describes slot 1. That comment describes a freshly installed machine; it is not
+a promise about one that has been rotated. What must stay true is that
+**keyslot 0 is the developer's passphrase**, because `fleet-passphrase` depends
+on it (D27).
+
+### When to rotate at all
+
+There is no rotation schedule, deliberately (D5). The cases that call for it:
+
+- **An administrator leaves, or an admin key is exposed.** They could read
+  every machine's recovery key. Rotating the files does not make them forget,
+  so this means running `fleet-rotate-recovery` on every machine — otherwise it
+  is paperwork. See `docs/access-control.md`.
+- **Reinstalling a machine.** The clean case: rotate, then install, and the new
+  values are what gets enrolled. Nothing to reconcile.
+- **A laptop is lost or stolen.** Rotation achieves nothing here — the disk is
+  gone. What protects it is that whoever has it holds neither the passphrase
+  nor an administrator age key.
 
 ## Afterwards
 

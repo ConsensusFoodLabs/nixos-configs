@@ -96,6 +96,10 @@
 
         # Destroys the key partition afterwards. Manual, never automatic (D29).
         fleet-wipe-key = import ./modules/installer/wipe-key.nix pkgs;
+
+        # Installed on every machine; exposed here without a device baked in
+        # so it is shellchecked and can be tested against a loop container.
+        fleet-rotate-recovery = import ./modules/fleet/recovery-package.nix pkgs null;
       };
 
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixpkgs-fmt;

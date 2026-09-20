@@ -47,9 +47,17 @@ to read these by hand.
 
     nix run .#fleet-mksecrets -- <hostname> --rotate
 
-Rotation changes what the *next* install uses. It does nothing to a machine
-already in the field: that machine keeps the keyslots it was built with, and
-removing the old ones is a physical task. See `docs/provisioning.md`.
+This changes the file only. For a machine already in service it leaves the
+repository holding a recovery key that **does not open that disk** — escrow you
+believe you have and do not.
+
+Finish the job on the machine:
+
+    sudo fleet-rotate-recovery
+
+which enrols the new key, tests it, and only then removes the old one. Full
+procedure, and when rotating is worth doing at all, in
+`docs/provisioning.md`.
 
 ## What is not here
 

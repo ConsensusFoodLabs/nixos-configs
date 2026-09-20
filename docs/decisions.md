@@ -726,6 +726,41 @@ the thing that decides what runs as root on every laptop. Branch protection
 
 ---
 
+## D31 — Rotating a recovery key is two steps, and the second one is a tool
+
+`fleet-mksecrets <host> --rotate` changes the file. `fleet-rotate-recovery`,
+run on the machine as an administrator, changes the disk.
+
+**Why a tool rather than a documented `cryptsetup` sequence:** between the two
+steps, `fleet/secrets/<host>.yaml` holds a recovery key that does not open that
+machine. The repository describes escrow that does not exist, and nothing
+detects it — the failure surfaces when someone tries to open a returned laptop.
+That makes the second step the one that must not be skipped or fumbled, and
+`cryptsetup luksKillSlot` will remove the last key that opens a disk without
+complaint.
+
+The tool enforces the only order that is safe: enrol, test, then remove —
+authorising the removal with the *new* key, so cryptsetup must accept it for
+real before anything is destroyed. It refuses to touch keyslot 0, which is the
+developer's passphrase and the basis of `fleet-passphrase`'s guarantee (D27).
+
+**Root-only, with no sudo rule.** Replacing escrow is an administrator action,
+unlike changing your own credentials. Administrators have `wheel` (D12), so
+plain `sudo` is the whole mechanism.
+
+**A consequence to expect:** the new key lands in a free slot rather than the
+one it replaces, so a rotated machine may hold its recovery key in slot 2 while
+`disko.nix` describes slot 1. That comment describes a freshly installed
+machine. The invariant that must hold is keyslot 0.
+
+**Not automated further, on purpose.** There is no fleet-wide rotation, because
+there is no fleet-wide anything: no push, no agent, no inventory of live
+machines (D6, D17). Rotating after an administrator departs means visiting each
+machine, and `docs/access-control.md` says so rather than implying a button
+exists.
+
+---
+
 ## Open, non-blocking
 
 - **Fingerprint reader.** The sensor is Synaptics `06cb:019f` (not Goodix as
