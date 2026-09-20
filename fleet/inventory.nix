@@ -9,6 +9,11 @@
 #
 # No hardware serial numbers. Those live in the private asset register, joined
 # to this repository by hostname (D13).
+#
+# sshKeys are PUBLIC keys. Public keys are not secret and belong in a public
+# repository; they are what lets an administrator reach the shared `admin`
+# account on any machine (D32). The matching private keys are held by each
+# administrator and exist nowhere here.
 {
   people = {
     oleg = {
@@ -16,6 +21,9 @@
       email = "oleg@consensusfoods.com";
       admin = true;
       active = true;
+      sshKeys = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILeHE4zujO3NvY/N8kVjXE2BigvMuWdfHHtOb6n2dPDI oleg@consensusfoods.com fleet admin"
+      ];
     };
   };
 

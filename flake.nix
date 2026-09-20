@@ -73,7 +73,7 @@
         # provisioning secrets: nix run .#fleet-mksecrets -- <hostname>
         fleet-mksecrets = pkgs.writeShellApplication {
           name = "fleet-mksecrets";
-          runtimeInputs = with pkgs; [ coreutils git gnugrep nix sops ];
+          runtimeInputs = with pkgs; [ coreutils git gnugrep jq nix sops ];
           text = builtins.readFile ./scripts/fleet-mksecrets;
         };
 

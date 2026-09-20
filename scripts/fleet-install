@@ -192,9 +192,23 @@ plain=$(SOPS_AGE_KEY_FILE=$id_file sops decrypt --output-type json "$secrets") |
 Either this key is not a recipient in .sops.yaml, or the file was encrypted
 before the key was added. 'sops updatekeys' fixes the second case."
 
-get() { jq -er --arg k "$1" '.[$k]' <<<"$plain"; }
+get() {
+    local v
+    v=$(jq -r --arg k "$1" '.[$k] // empty' <<<"$plain")
+    [[ -n $v ]] || die "fleet/secrets/$host.yaml has no '$1'.
+
+It predates the change that introduced that field. On an administrator
+workstation, add it without disturbing the values already in use:
+
+    nix run .#fleet-mksecrets -- $host --add-missing
+
+then merge that before installing. Do NOT use --rotate: it would replace this
+machine's recovery key too."
+    printf '%s' "$v"
+}
 luks_passphrase=$(get luks_passphrase)
 luks_recovery_key=$(get luks_recovery_key)
+admin_password=$(get admin_password)
 user_initial_password=$(get user_initial_password)
 
 if ((check)); then
@@ -255,13 +269,20 @@ cryptsetup luksOpen --test-passphrase --key-file "$recovery_file" "$luks" ||
     die "the RECOVERY KEY does not open $luks — do not ship this machine"
 echo "both slots open the disk"
 
-say "Setting the initial account password for $user"
-# Accounts use hashedPasswordFile, so the hash lives on the machine and never
-# in this public repository (D21). The developer replaces it with fleet-passwd.
+say "Setting account passwords"
+# Accounts use hashedPasswordFile, so hashes live on the machine and never in
+# this public repository (D21). The developer replaces theirs with
+# fleet-passwd; the admin password is the organization's and stays as issued.
 install -d -m 0755 /mnt/var/lib/fleet
 printf '%s\n' "$user_initial_password" |
     mkpasswd -m yescrypt -s >"/mnt/var/lib/fleet/$user.passwd"
 chmod 0600 "/mnt/var/lib/fleet/$user.passwd"
+echo "  $user"
+
+printf '%s\n' "$admin_password" |
+    mkpasswd -m yescrypt -s >"/mnt/var/lib/fleet/admin.passwd"
+chmod 0600 "/mnt/var/lib/fleet/admin.passwd"
+echo "  admin (shared administrator account, in wheel, reachable over SSH)"
 
 say "Installing NixOS"
 nixos-install --no-root-passwd --flake "$flake#$host"
@@ -282,6 +303,9 @@ Hand over to the developer:
 
   Disk passphrase   $luks_passphrase
   Login password    $user_initial_password
+
+The admin account's password is not for the developer. It is in
+fleet/secrets/$host.yaml for administrators who need console or sudo access.
 
 Both are initial credentials. Tell them to change both on first login:
 

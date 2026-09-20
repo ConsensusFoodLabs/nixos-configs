@@ -78,6 +78,26 @@ not a curiosity.
 and nobody reviews it on a schedule, so it must not be described as a detective
 control. It becomes one when central collection exists.
 
+## Administrator access to a machine
+
+Every machine carries a shared `admin` account, in `wheel`, with the SSH public
+keys of every active administrator (D32):
+
+    ssh -i ~/.ssh/fleet-admin-<name> admin@<machine>
+
+Key-only — password and keyboard-interactive authentication are off, and root
+login is refused. The `admin` password, in `fleet/secrets/<host>.yaml`, is for
+`sudo` and console login.
+
+This exists so a machine can be reached when its owner cannot help: someone on
+leave, a laptop that boots but has a broken desktop, a departure. It is not a
+substitute for asking the owner.
+
+**It is a listening service on a laptop that travels.** Port 22 is open on
+whatever network the machine is on, including untrusted ones. Key-only
+authentication is what makes that acceptable rather than reckless; see D32 for
+what is and is not mitigated.
+
 ## Installing software
 
 Install what you need, when you need it. The declared baseline is what every

@@ -18,8 +18,13 @@
   networking.networkmanager.enable = true;
   networking.firewall.enable = true;
 
-  # Laptops are not servers. Nothing should be reaching in.
-  services.openssh.enable = false;
+  # SSH is enabled, in modules/fleet/admin.nix, and configured there.
+  #
+  # This said `enable = false` with the note "laptops are not servers, nothing
+  # should be reaching in" — which was the right default until administrators
+  # needed to reach a machine whose owner cannot help. That is a deliberate
+  # reversal, not an oversight, and it is why the settings live next to the
+  # admin account they exist for rather than here (D32).
 
   security.sudo.wheelNeedsPassword = true;
 

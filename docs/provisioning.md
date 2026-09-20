@@ -211,7 +211,25 @@ Wi-Fi is the one that matters most: these machines have no Ethernet port, and a
 laptop that cannot reach the network cannot pull its own fix (D10). If
 `iwlwifi` has not loaded firmware, stop and fix it before the machine leaves.
 
-## 6. Hand over
+## 6. Check the admin account
+
+Every machine ships with a shared `admin` account: in `wheel`, reachable over
+SSH with the public keys of every active administrator in the inventory (D32).
+It is how an administrator reaches a machine they do not own.
+
+From another machine on the same network:
+
+    ssh -i ~/.ssh/fleet-admin-<name> admin@<machine>
+
+Confirm it works **before** the laptop leaves, because the alternative to
+fixing it now is asking the owner to read things off a screen later.
+
+    sudo -v        # on the machine, as admin — the password is admin_password
+
+SSH is key-only: no passwords, no keyboard-interactive, no root login. The
+admin password is for `sudo` and for the console, not for SSH.
+
+## 7. Hand over
 
 Give the developer the passphrase and password `fleet-install` printed, and
 tell them to change both on first login:
@@ -222,7 +240,7 @@ tell them to change both on first login:
 Both are initial credentials (D27). Neither tool can touch the recovery
 keyslot, so the organization keeps its access whatever the developer chooses.
 
-## 7. Wipe the key partition
+## 8. Wipe the key partition
 
 **Manual, and deliberately not automatic (D29).** Provisioning is still being
 proven, and a run that wiped its own key would have to be re-armed before every
@@ -245,7 +263,7 @@ which is the best available answer, but treat a stick that has held a key as
 having held it. The durable controls are a dedicated stick and the ability to
 rotate the key (D25).
 
-## 8. Record it
+## 9. Record it
 
 - Asset register (private, not this repository): hostname, serial, purchase and
   warranty details, who holds it.

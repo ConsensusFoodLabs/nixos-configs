@@ -761,6 +761,50 @@ exists.
 
 ---
 
+## D32 — Every machine ships with a shared `admin` account, reachable over SSH
+
+In `wheel`, carrying the SSH public keys of every person in the inventory with
+`admin = true` and `active = true`. Its password is a provisioned secret,
+per machine (D24). Not gated on the owner being active.
+
+**Why:** a fleet where the only way into a laptop is its owner is a fleet with
+no answer to "the owner is on leave and their machine is wedged", or "someone
+left and the machine is still in the field". Administrator rights already exist
+per person (D12); this makes them mean something on a machine the administrator
+does not own.
+
+Keys come from the inventory rather than a separate list, so granting `admin`
+and granting SSH to every machine are one tightly-reviewed change and cannot
+drift apart. An assertion fails the build if no active administrator has a key,
+because a machine shipping with an admin account nobody can log into is worse
+than shipping without one — it looks like access that is not there.
+
+**This reverses `services.openssh.enable = false`** in `profiles/base.nix`,
+whose note read "laptops are not servers, nothing should be reaching in". That
+was right until administrators needed to reach a machine whose owner cannot
+help. Stated here so the reversal is a decision rather than a drift.
+
+**What it costs, plainly.** These laptops travel, so this is a listening
+service on untrusted networks — hotel wifi, conference wifi, cafes. Mitigated
+by: key-only authentication, no keyboard-interactive, no root login, so there
+is no password prompt to attack. Not mitigated: the presence of the service
+itself, port 22 reachable from the local network wherever the machine is, and
+any future vulnerability in sshd. The honest description is that the exposure
+is a real increase, bounded by there being nothing to guess.
+
+**Revisit when:** there is a VPN or an overlay network (Tailscale, WireGuard).
+Binding sshd to that interface instead of every interface removes most of this,
+and is the obvious next step once such a thing exists.
+
+**A consequence that is easy to miss:** removing a departing administrator's
+`sshKeys` from the inventory does not revoke anything until each machine runs
+`fleet-update`. There is no push (D6). Their key opens the `admin` account on
+every laptop in the field until that machine pulls. `docs/access-control.md`
+says so in the offboarding checklist; do not describe SSH revocation as
+immediate.
+
+---
+
 ## Open, non-blocking
 
 - **Fingerprint reader.** The sensor is Synaptics `06cb:019f` (not Goodix as

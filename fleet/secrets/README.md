@@ -7,6 +7,7 @@ machine is installed with:
 | --- | --- |
 | `luks_passphrase` | the disk passphrase the machine ships with; the developer replaces it with `fleet-passphrase` |
 | `luks_recovery_key` | the organization's standing access to the disk. Not initial, does not expire (D5) |
+| `admin_password` | password for the shared `admin` account — sudo and console. Not initial: it stays as issued (D32) |
 | `user_initial_password` | the login password the machine ships with; the developer replaces it with `fleet-passwd` |
 
 These are encrypted with [sops](https://github.com/getsops/sops) to the age
@@ -42,6 +43,19 @@ dependency of this repository, so the commands here spell it out.
 
 `fleet-install` handles this itself during provisioning; you should rarely need
 to read these by hand.
+
+## Adding a field to an existing machine
+
+When a new secret is introduced, a machine provisioned before it exists has a
+file without that field:
+
+    nix run .#fleet-mksecrets -- <hostname> --add-missing
+
+Every value already present is carried across byte for byte; only absent ones
+are generated. It prints which it kept and which it added.
+
+Use this, never `--rotate`, for a machine already in service. `--rotate` would
+replace `luks_recovery_key` too, and that key is enrolled on a real disk (D31).
 
 ## Rotating them
 

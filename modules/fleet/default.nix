@@ -11,7 +11,7 @@ let
   inherit (person) active;
 in
 {
-  imports = [ ./fleet-status.nix ./fleet-credentials.nix ./fleet-update.nix ./fleet-recovery.nix ];
+  imports = [ ./fleet-status.nix ./fleet-credentials.nix ./fleet-update.nix ./fleet-recovery.nix ./admin.nix ];
 
   options.fleet = {
     user = lib.mkOption {

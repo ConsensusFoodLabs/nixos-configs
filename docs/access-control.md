@@ -48,6 +48,21 @@ That last one means the tracked branch decides what runs as root on every
 laptop, which is the intended model — and the reason review of that branch is
 the control that matters, not the `sudo` rule (D23, D30).
 
+### The shared admin account
+
+Every machine ships with an `admin` account in `wheel`, carrying the SSH public
+keys of every person in the inventory with `admin = true` and `active = true`
+(D32). Being an administrator and being able to SSH into every laptop are
+therefore the same fact, expressed once — there is no second list to drift out
+of step with the first.
+
+Its password lives in each machine's `fleet/secrets/<host>.yaml`, so it differs
+per machine. Unlike the owner's, it is not an initial credential: it stays as
+issued.
+
+The account is **not** gated on the owner being active. A machine whose owner
+has left is precisely a machine an administrator still needs to reach.
+
 ### The administrator age key
 
 Holding an administrator age identity is a distinct and higher privilege from
@@ -125,6 +140,13 @@ never run `nixos-rebuild` again. Do the real work first:
 1. **Recover the device.** Nothing else on this list works without it.
 2. **Revoke upstream access** — GitHub, cloud, SSO, anything holding real
    authority. This is what actually ends their access.
+
+   For a departing **administrator**, removing their `sshKeys` from the
+   inventory does not take effect until each machine runs `fleet-update`. Until
+   then their key still opens the `admin` account on every laptop in the field.
+   That is the pull model (D6) showing its cost: there is no push, so
+   revocation is a request, not an act. Either reach each machine, or treat
+   their access as live until you have confirmed otherwise per machine.
 3. **Rotate secrets they held.** Removing someone as a recipient does not help:
    they already had the plaintext (D1).
 
