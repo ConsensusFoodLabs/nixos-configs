@@ -73,6 +73,31 @@
         locker = "${pkgs.systemd}/bin/loginctl lock-session";
       };
 
+      # Displays, on hotplug.
+      #
+      # GNOME's mutter reconfigures outputs by itself; i3 does not do display
+      # management at all, so plugging in a dock gets you a second screen that
+      # is connected, powered, and showing nothing until something calls
+      # xrandr. autorandr is that something: it ships a udev rule on
+      # SUBSYSTEM=="drm" that starts autorandr.service, and the service runs
+      # --batch, which applies the layout inside each running X session rather
+      # than only for root.
+      #
+      # defaultTarget is the fallback used when no saved profile matches the
+      # connected set of monitors, which is every profile until someone saves
+      # one. "horizontal" lays the outputs out left to right at their
+      # preferred modes — so a new dock or a borrowed monitor lights up
+      # without anyone having configured anything, and unplugging falls back
+      # to the laptop panel.
+      #
+      # Saved layouts are per-user and live in ~/.config/autorandr, matched by
+      # the monitors' EDIDs (docs/operations.md). They are not declared here:
+      # a fingerprint is specific to one desk, not to the fleet.
+      services.autorandr = {
+        enable = true;
+        defaultTarget = "horizontal";
+      };
+
       # Brightness keys. acpilight provides an xbacklight-compatible command
       # that writes sysfs, which works on hardware where the X RANDR backlight
       # property does not exist. Users in `video` may use it.

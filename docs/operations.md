@@ -120,6 +120,38 @@ whatever network the machine is on, including untrusted ones. Key-only
 authentication is what makes that acceptable rather than reckless; see D32 for
 what is and is not mitigated.
 
+## External monitors (i3 machines)
+
+Displays are reconfigured automatically on plug and unplug. A udev rule on
+DRM hotplug starts `autorandr.service`, which applies a layout inside your
+running session — nothing needs to be in your i3 config and nothing needs to
+run at login.
+
+With no saved layout, it falls back to `horizontal`: outputs left to right at
+their preferred modes. That is deliberately a fallback that always works, not
+a good layout. To keep one you actually like, arrange it once and save it:
+
+```
+arandr                  # or xrandr directly
+autorandr --save desk   # any name
+```
+
+Saved layouts live in `~/.config/autorandr/` and are matched by the monitors'
+EDIDs, so the same desk is recognised next time and a different one falls back
+to `horizontal` again. Useful commands:
+
+```
+autorandr                # list saved profiles, marking the detected one
+autorandr --change       # re-apply now
+autorandr desk           # force a named profile
+autorandr --remove desk
+```
+
+These are per-user and per-desk, which is why they are not declared in this
+repository — a monitor fingerprint describes someone's desk, not the fleet.
+
+On GNOME machines none of this applies; mutter handles hotplug itself.
+
 ## Google Drive (rclone)
 
 Machines whose home configuration declares rclone mounts ship the systemd user

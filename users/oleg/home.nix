@@ -101,6 +101,9 @@ in
     dunst
     libnotify
     feh
+    # Point-and-click xrandr, for working out a layout worth saving with
+    # `autorandr --save`.
+    arandr
     networkmanagerapplet
     pavucontrol
 
