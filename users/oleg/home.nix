@@ -52,9 +52,8 @@ let
 in
 {
   home.packages = with pkgs; [
-    jujutsu
-    claude-code
-
+    # jujutsu and claude-code are not listed here: both are in the shared
+    # baseline in profiles/engineering.nix, so every machine gets them.
     telegram-desktop
     sox
 

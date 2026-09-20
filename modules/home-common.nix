@@ -19,6 +19,21 @@
     };
   };
 
+  # jujutsu ships fleet-wide (profiles/engineering.nix), and refuses to
+  # commit without a name and email. Same source as git's, so the two cannot
+  # disagree about who you are.
+  programs.jujutsu = {
+    enable = lib.mkDefault true;
+    # Config only: the binary comes from the shared baseline, so without this
+    # jj is installed twice and the home profile's copy shadows the system
+    # one on PATH.
+    package = lib.mkDefault null;
+    settings.user = {
+      name = lib.mkDefault person.fullName;
+      email = lib.mkDefault person.email;
+    };
+  };
+
   programs.bash.enable = lib.mkDefault true;
   programs.starship.enable = lib.mkDefault true;
   programs.direnv = {
