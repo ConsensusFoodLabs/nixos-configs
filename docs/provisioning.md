@@ -226,6 +226,11 @@ fixing it now is asking the owner to read things off a screen later.
 
     sudo -v        # on the machine, as admin — the password is admin_password
 
+If that rejects a password you know is right, the machine has no
+`/var/lib/fleet/admin.passwd`; `fleet-status` will say so and
+`sudo fleet-set-password admin` fixes it. A fresh install writes it, so this
+only affects machines provisioned before the account existed.
+
 SSH is key-only: no passwords, no keyboard-interactive, no root login. The
 admin password is for `sudo` and for the console, not for SSH.
 

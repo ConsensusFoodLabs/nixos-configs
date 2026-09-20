@@ -126,6 +126,67 @@ let
     '';
   };
 
+  # Seeding a declared account's password file.
+  #
+  # users.users.<n>.hashedPasswordFile is read at activation; if the file is
+  # absent, NixOS warns once and leaves the account locked. SSH key auth still
+  # works, so the failure shows up later as sudo refusing a password that is
+  # definitely correct.
+  #
+  # That happens whenever a new account is declared for a fleet that already
+  # exists: fleet-install writes these files, and machines provisioned before
+  # the account existed never had it written.
+  #
+  # Applies the hash to /etc/shadow as well as writing the file, so it takes
+  # effect without waiting for the next rebuild.
+  setPassword = pkgs.writeShellApplication {
+    name = "fleet-set-password";
+    runtimeInputs = with pkgs; [ coreutils mkpasswd shadow ];
+    text = ''
+            declare -A declared=(
+              ${lib.concatStringsSep "
+              " (lib.mapAttrsToList
+                (n: u: ''[${lib.escapeShellArg n}]=${lib.escapeShellArg u.hashedPasswordFile}'')
+                (lib.filterAttrs (_: u: u.hashedPasswordFile != null) config.users.users))}
+            )
+
+            account=''${1:-}
+            if [ -z "$account" ] || [ -z "''${declared[$account]:-}" ]; then
+              echo "usage: fleet-set-password <account>" >&2
+              echo >&2
+              echo "Accounts on this machine with a declared password file:" >&2
+              for a in "''${!declared[@]}"; do
+                if [ -e "''${declared[$a]}" ]; then state="set"; else state="MISSING"; fi
+                printf '  %-12s %s (%s)\n' "$a" "''${declared[$a]}" "$state" >&2
+              done
+              exit 2
+            fi
+
+            file=''${declared[$account]}
+
+            # Checked after the usage listing, so `fleet-set-password` with no
+            # arguments still tells an unprivileged caller what the state is.
+            [ "$(id -u)" = 0 ] || {
+              echo "fleet-set-password: must run as root (sudo fleet-set-password $account)" >&2
+              exit 1
+            }
+            echo "Setting the password for '$account'."
+            hash=$(mkpasswd -m yescrypt)
+            [ -n "$hash" ] || { echo "no password given" >&2; exit 1; }
+
+            install -d -m 0755 /var/lib/fleet
+            umask 077
+            printf '%s
+      ' "$hash" > "$file"
+
+            # Apply now as well, so this does not need a rebuild to take effect.
+            printf '%s:%s
+      ' "$account" "$hash" | chpasswd -e
+
+            echo "wrote $file and applied it; '$account' can log in now"
+    '';
+  };
+
   fleetPassphrase = pkgs.writeShellApplication {
     name = "fleet-passphrase";
     # By path, for the reason given above: the store sudo is not setuid.
@@ -137,7 +198,7 @@ let
 in
 {
   config = lib.mkIf active {
-    environment.systemPackages = [ fleetPasswd fleetPassphrase ];
+    environment.systemPackages = [ fleetPasswd fleetPassphrase setPassword ];
 
     # NixOS installs the setuid passwd wrapper only when users.mutableUsers is
     # true (nixos/modules/programs/shadow.nix wraps chsh and passwd in an

@@ -93,6 +93,19 @@ This exists so a machine can be reached when its owner cannot help: someone on
 leave, a laptop that boots but has a broken desktop, a departure. It is not a
 substitute for asking the owner.
 
+### If sudo rejects the admin password
+
+On a machine provisioned before the admin account existed,
+`/var/lib/fleet/admin.passwd` was never written. NixOS warns once at activation
+and leaves the account locked, so SSH keys still work and `sudo` rejects a
+password that is definitely correct.
+
+    fleet-status                       # shows which accounts are missing one
+    sudo fleet-set-password admin      # prompts, writes the file, applies it
+
+It takes effect immediately — no rebuild needed. The same applies to any
+account added to a fleet that already exists.
+
 **It is a listening service on a laptop that travels.** Port 22 is open on
 whatever network the machine is on, including untrusted ones. Key-only
 authentication is what makes that acceptable rather than reckless; see D32 for

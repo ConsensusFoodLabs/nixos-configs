@@ -7,6 +7,12 @@
 let
   inherit (config.fleet) repoUrl flakeRef;
 
+  # Accounts whose password comes from a file. An absent file leaves the
+  # account locked with only a warning at activation, which is easy to miss and
+  # then presents as sudo rejecting a password that is definitely correct.
+  passwordFiles = lib.mapAttrsToList (n: u: "${n} ${u.hashedPasswordFile}")
+    (lib.filterAttrs (_: u: u.hashedPasswordFile != null) config.users.users);
+
   fleet-status = pkgs.writeShellApplication {
     name = "fleet-status";
     runtimeInputs = with pkgs; [ nix git jq coreutils ];
@@ -36,6 +42,19 @@ let
       else
         echo "  could not reach upstream"
       fi
+
+      echo
+      echo "account passwords:"
+      ${lib.concatMapStringsSep "
+      " (entry: ''
+        set -- ${entry}
+        if [ -e "$2" ]; then
+          echo "  $1: set"
+        else
+          echo "  $1: MISSING $2 — this account is locked out."
+          echo "      fix with: sudo fleet-set-password $1"
+        fi
+      '') passwordFiles}
 
       echo
       echo "packages installed outside the declared baseline:"
