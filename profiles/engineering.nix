@@ -58,7 +58,7 @@
       # the machine suspends rather than after it wakes.
       programs.xss-lock = {
         enable = true;
-        lockerCommand = "${pkgs.i3lock}/bin/i3lock --nofork --color=1d2021";
+        lockerCommand = "${pkgs.i3lock}/bin/i3lock --nofork --color=1E2127";
       };
 
       # xautolock covers the idle case. Five minutes, matching the GNOME

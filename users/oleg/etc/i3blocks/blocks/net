@@ -13,7 +13,7 @@ device=$(nmcli -t -f DEVICE,STATE device status | awk -F: '$2 == "connected" { p
 if [[ -z $device ]]; then
   echo "NET down"
   echo "down"
-  echo "#cc241d"
+  echo "#E06C75"
   exit 0
 fi
 

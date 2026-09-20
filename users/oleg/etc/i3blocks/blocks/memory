@@ -15,6 +15,6 @@ echo "MEM ${gib}G"
 echo "MEM ${percent}%"
 
 if [[ $percent -ge 90 ]]; then
-  echo "#cc241d"
+  echo "#E06C75"
   exit 33
 fi

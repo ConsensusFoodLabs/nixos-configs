@@ -19,7 +19,7 @@ echo "BAT ${mark}${capacity}%"
 echo "${mark}${capacity}%"
 
 if [[ $status == Discharging && $capacity -le 15 ]]; then
-  echo "#cc241d"
+  echo "#E06C75"
   exit 33
 fi
 exit 0

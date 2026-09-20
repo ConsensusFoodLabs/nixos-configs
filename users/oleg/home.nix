@@ -142,8 +142,10 @@ in
     ".config/rofi/powermenu.rasi".source = ./etc/rofi/powermenu.rasi;
     ".config/rofi/calendar.rasi".source = ./etc/rofi/calendar.rasi;
     ".config/picom/picom.conf".source = ./etc/picom/picom.conf;
+    # Theme names are the file names under ghostty's share/ghostty/themes,
+    # spaces included. onedark, to match the rofi themes.
     ".config/ghostty/config".text = ''
-      theme = GruvboxDark
+      theme = Atom One Dark
       window-decoration = none
     '';
   };

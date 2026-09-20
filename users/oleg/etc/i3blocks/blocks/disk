@@ -11,6 +11,6 @@ echo "$avail"
 
 # df prints the used percentage; warn when little is left.
 if [[ ${percent%\%} -ge 90 ]]; then
-  echo "#cc241d"
+  echo "#E06C75"
   exit 33
 fi

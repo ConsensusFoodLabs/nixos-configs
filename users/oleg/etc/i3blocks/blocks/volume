@@ -17,7 +17,7 @@ percent=$(awk -v v="$level" 'BEGIN { printf "%d", v * 100 + 0.5 }')
 if [[ $rest == *MUTED* ]]; then
   echo "VOL mute"
   echo "VOL mute"
-  echo "#928374"
+  echo "#5C6370"
 else
   echo "VOL ${percent}%"
   echo "VOL ${percent}%"
