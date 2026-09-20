@@ -21,6 +21,30 @@ let
   # devices — touchscreens and pens — and absent on mice and touchpads, which
   # is exactly the distinction that matters here: a pen should be confined to
   # the same panel its touchscreen is.
+  # The screen locker, with its settings baked in rather than left to the
+  # session environment: this command is run by xss-lock from a systemd user
+  # service, which does not inherit a login shell's variables.
+  #
+  # XSECURELOCK_PAM_SERVICE is the one that matters. It defaults to "login",
+  # and pointing it at a service that does not exist is not a soft failure:
+  # NixOS's fallback PAM service `other` is pam_deny in every phase, so the
+  # lock screen would reject every correct password. The matching
+  # security.pam.services.xsecurelock below is not optional.
+  lockCommand = pkgs.writeShellApplication {
+    name = "fleet-lock";
+    runtimeInputs = [ pkgs.xsecurelock ];
+    text = ''
+      export XSECURELOCK_PAM_SERVICE=xsecurelock
+      export XSECURELOCK_SHOW_DATETIME=1
+      export XSECURELOCK_SHOW_USERNAME=1
+      # Blank after a minute rather than showing the prompt indefinitely.
+      export XSECURELOCK_BLANK_TIMEOUT=60
+      # Keeps the lock visible if a compositor is running, which one is.
+      export XSECURELOCK_COMPOSITE_OBSCURER=1
+      exec xsecurelock
+    '';
+  };
+
   mapTouchscreen = pkgs.writeShellApplication {
     name = "map-touch-to-panel";
     # coreutils for head: writeShellApplication prepends runtimeInputs to PATH
@@ -92,7 +116,7 @@ in
         enable = true;
         # i3blocks, not i3status: the bar is configured in the owner's home
         # directory and its blocks are shipped from users/<name>/etc.
-        extraPackages = with pkgs; [ i3blocks i3lock ];
+        extraPackages = with pkgs; [ i3blocks ];
       };
 
       # i3 ships no screen locking of its own, so it is declared here in two
@@ -105,8 +129,17 @@ in
       # the machine suspends rather than after it wakes.
       programs.xss-lock = {
         enable = true;
-        lockerCommand = "${pkgs.i3lock}/bin/i3lock --nofork --color=1E2127";
+        lockerCommand = "${lockCommand}/bin/fleet-lock";
       };
+
+      # The locker's own PAM stack. unixAuth is on by default, so this accepts
+      # the login password; fprintAuth adds the reader.
+      #
+      # i3lock was the locker here first and was replaced because its PAM
+      # conversation is password-shaped: with pam_fprintd in the stack it
+      # appears to hang until you press Enter. xsecurelock drives PAM
+      # properly and shows the "place your finger" prompt (D36).
+      security.pam.services.xsecurelock.fprintAuth = true;
 
       # xautolock covers the idle case. Five minutes, matching the GNOME
       # branch's idle-delay=300 — the two sessions must not differ in how long
@@ -184,6 +217,73 @@ in
 
     {
       services.printing.enable = true;
+
+      # Fingerprint reader.
+      #
+      # The sensor is a Synaptics match-on-chip device: enrolment and matching
+      # happen on the reader, and templates do not leave it in raw form. What
+      # is stored under /var/lib/fprint is a handle — inside the LUKS volume,
+      # machine-local, never in this repository (D36).
+      #
+      # Note what enabling this actually does: security.pam.services.*
+      # .fprintAuth DEFAULTS to services.fprintd.enable, so this one line puts
+      # pam_fprintd into the auth stack of every PAM service on the machine,
+      # not just the ones named below. That is mostly fine — pam_fprintd
+      # authenticates the *target* user, so `su oleg` still needs oleg's
+      # finger — but it is not obvious from reading this file, and the two
+      # exceptions below are the cases where it matters.
+      services.fprintd.enable = true;
+
+      security.pam.services = {
+        # Named for the record rather than because they change anything: both
+        # are already true by default. These are the paths the reader exists
+        # for.
+        sudo.fprintAuth = true;
+        polkit-1.fprintAuth = true;
+
+        # A remote login must never be approvable by a finger on the local
+        # reader. pam_fprintd prompts the reader attached to *this* machine,
+        # so if sshd's auth stack were reachable, someone innocently touching
+        # the sensor could complete a stranger's SSH login — the person
+        # authenticating would not be the person being authenticated.
+        #
+        # It is not reachable today: modules/fleet/admin.nix turns off both
+        # PasswordAuthentication and KbdInteractiveAuthentication, so sshd
+        # never runs the PAM auth stack. This is defence against that line
+        # changing in a file that says nothing about fingerprints — and the
+        # assertion below turns that coupling into a build failure.
+        sshd.fprintAuth = false;
+
+        # The fingerprint is meant to be a convenience alternative to the
+        # login password. If it can also *rotate* that password, it stops
+        # being an alternative and becomes strictly more powerful than the
+        # credential it stands in for — the fallback would be resettable by
+        # the convenience.
+        #
+        # This is a structural preference, not a defence against a specific
+        # attack: an opportunist at an unattended unlocked laptop does not
+        # have your finger either (D36).
+        passwd.fprintAuth = false;
+        chpasswd.fprintAuth = false;
+      };
+
+      assertions = [
+        {
+          assertion = !(config.security.pam.services.sshd.fprintAuth
+            && (config.services.openssh.settings.PasswordAuthentication
+            || config.services.openssh.settings.KbdInteractiveAuthentication));
+          message = ''
+            profiles/engineering.nix: sshd accepts password or
+            keyboard-interactive authentication while pam_fprintd is in its
+            PAM stack. That combination lets a finger on this machine's reader
+            approve someone else's remote login.
+
+            Either leave security.pam.services.sshd.fprintAuth = false, or
+            turn the ssh authentication methods back off in
+            modules/fleet/admin.nix.
+          '';
+        }
+      ];
 
       services.pipewire = {
         enable = true;

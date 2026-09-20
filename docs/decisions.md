@@ -1018,3 +1018,94 @@ missing-library error that at least names what is missing. The fix is an entry
 in `programs.nix-ld.libraries`, which is a pull request against a
 tightly-reviewed file — acceptable friction, since it is rare and the error
 message says what to add.
+
+## D36 — Fingerprint authentication, and a new screen locker to make it usable
+
+**Decided:** `services.fprintd.enable = true` on engineering machines, with
+the screen locker changed from i3lock to xsecurelock on i3 machines.
+
+The reader is a Synaptics match-on-chip sensor, `06cb:019f`, supported by the
+`synaptics` driver in libfprint 1.94.10 — the version in our pin. Enrolment
+and matching happen on the device; what lands in `/var/lib/fprint` is a
+handle, inside the LUKS volume, machine-local, and never in this repository.
+
+### What it is used for
+
+`sudo`, polkit prompts, GDM login, and the screen lock. GDM needs nothing from
+us: the gdm module adds a `gdm-fingerprint` PAM service when fprintd is on.
+
+### Why the locker changed
+
+i3lock's PAM conversation is password-shaped. With `pam_fprintd` in the stack
+it appears to hang until you press Enter, which is not a configuration
+problem — it is what the program does. xsecurelock drives PAM properly and
+surfaces the "place your finger" prompt.
+
+This replaced a security control, so two things were checked rather than
+assumed:
+
+- `XSECURELOCK_PAM_SERVICE` defaults to `login`. NixOS's fallback PAM service
+  `other` is `pam_deny` in **every** phase, so pointing the locker at a
+  service that does not exist does not degrade gracefully — it produces a lock
+  screen that rejects every correct password. The service name is therefore
+  set explicitly and `security.pam.services.xsecurelock` is defined alongside
+  it. The rendered stack was read back to confirm `pam_unix` is present, so
+  the login password still works if the reader does not.
+- The locker settings are exported inside the locker command rather than left
+  to the session environment, because xss-lock runs it from a systemd user
+  service which inherits no login shell.
+
+**If the lock screen ever does reject a correct password**, the way back in is
+SSH as `admin` and `pkill xsecurelock` (D32). That is a reason to keep the
+admin account working, not a reason to be relaxed about the locker.
+
+### What enabling fprintd actually does
+
+`security.pam.services.*.fprintAuth` **defaults to
+`services.fprintd.enable`**. One line therefore puts `pam_fprintd` into the
+auth stack of every PAM service on the machine. That is mostly harmless —
+`pam_fprintd` authenticates the *target* user, so `su oleg` still needs
+oleg's finger, and tools like `useradd` run as root and do not authenticate
+at all — but it is invisible from the config, and it was not what the line
+appeared to say. Two exceptions are set explicitly:
+
+- **`sshd`: off.** `pam_fprintd` prompts the reader attached to *this*
+  machine. If sshd's auth stack were reachable, someone innocently touching
+  the sensor could complete a stranger's remote login — the person
+  authenticating would not be the person being authenticated. It is not
+  reachable today, because `modules/fleet/admin.nix` disables both
+  `PasswordAuthentication` and `KbdInteractiveAuthentication`. An assertion
+  ties those two files together so that re-enabling ssh password auth fails
+  the build instead of quietly creating the hazard.
+- **`passwd` and `chpasswd`: off.** The fingerprint is meant to be a
+  convenience alternative to the login password. If it can also rotate that
+  password, it is no longer an alternative — it is strictly more powerful
+  than the credential it stands in for, and the fallback becomes resettable
+  by the convenience. This is a structural preference and is recorded as one:
+  there is no specific attack behind it, since an opportunist at an
+  unattended unlocked laptop does not have your finger either.
+
+Everything else keeps the default. An earlier draft of this change carried a
+long deny-list covering `su`, `chsh`, `chfn`, `useradd` and others; it was
+dropped because none of those cases survived examination, and a deny-list
+that implies an unwritten threat model is worse than no deny-list.
+
+### What this does not touch
+
+**The disk.** fprintd is a userspace D-Bus daemon and initrd has neither, and
+`systemd-cryptenroll` has no fingerprint backend. LUKS keyslot 0, the
+recovery keyslot, the escrow in `fleet/secrets/` and `fleet-rotate-recovery`
+are all exactly as they were (D5, D31).
+
+### The tradeoff being accepted
+
+A fingerprint is not a secret. It is on every surface you touch, including
+the laptop, and unlike the recovery key — for which this repository has a
+rotation tool — it cannot be reissued. `sufficient` means it *replaces* the
+password rather than adding to it, so for a user in `wheel` a fingerprint
+grants root.
+
+The judgement is that this is worth it at prompts where the alternative
+credential is a login password typed many times a day in a public place,
+where shoulder-surfing is the more realistic threat. It would not be worth it
+for disk encryption, which is why that is untouched.

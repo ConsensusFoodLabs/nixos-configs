@@ -120,6 +120,40 @@ whatever network the machine is on, including untrusted ones. Key-only
 authentication is what makes that acceptable rather than reckless; see D32 for
 what is and is not mitigated.
 
+## Fingerprint reader
+
+Nothing recognises your finger until you enrol it. Enrolment is per user, per
+machine, and is not provisioned — there is nothing in the repository to set up
+and nothing to check in.
+
+```
+fprintd-enroll          # right index finger by default
+fprintd-list "$USER"    # what is enrolled
+fprintd-verify          # test it
+```
+
+`fprintd-enroll -f left-index-finger` enrols a specific one; run it several
+times for several fingers. Enrolments live in `/var/lib/fprint`, inside the
+encrypted volume, and are lost if the machine is reinstalled.
+
+Once enrolled, the reader works for `sudo`, polkit prompts, the GDM login
+screen and the screen lock. Your password still works everywhere the finger
+does — if the reader fails, press Enter and type it.
+
+It deliberately does **not** work for `passwd`, and cannot work for the disk
+passphrase at boot: see D36.
+
+### If the lock screen will not accept your password
+
+SSH in as `admin` from another machine and kill the locker:
+
+```
+ssh admin@<host>
+pkill xsecurelock
+```
+
+This is the reason the admin account exists (D32).
+
 ## External monitors (i3 machines)
 
 Displays are reconfigured automatically on plug and unplug. A udev rule on
