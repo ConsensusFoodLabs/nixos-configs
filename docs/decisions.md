@@ -427,15 +427,20 @@ difference between "drive over with a dongle" and "reinstall".
 ## D20 — Unfree packages allowed by name, not blanket-enabled
 
 **Decided:** `nixpkgs.config.allowUnfreePredicate` with an explicit allowlist in
-`profiles/base.nix`, rather than `allowUnfree = true`. Currently three
-entries: `claude-code`, `google-chrome` and `slack`.
+`profiles/base.nix`, rather than `allowUnfree = true`. Currently four
+entries: `claude-code`, `google-chrome`, `slack` and `vscode`.
 
-**Amended:** `google-chrome` and `slack` are in the shared baseline in
-`profiles/engineering.nix` — every engineering machine gets both, Chrome
+**Amended:** `google-chrome`, `slack` and `vscode` are in the shared baseline
+in `profiles/engineering.nix` — every engineering machine gets them, Chrome
 alongside Firefox. These are the first unfree packages we ship fleet-wide
 rather than to one person, which is exactly the question this allowlist exists
 to make answerable: "what proprietary software runs on these machines" is
-answered by three lines in one tightly-reviewed file. The allowlist entry and the baseline entry have to
+answered by four lines in one tightly-reviewed file.
+
+`vscode` rather than `vscodium`, which is MIT and would need no entry here:
+the marketplace is the reason people want it, and the open-vsx one codium uses
+does not carry the same extensions. That is a deliberate trade of a licensing
+entry for the thing people actually asked for, not an oversight. The allowlist entry and the baseline entry have to
 move together — removing one without the other either breaks the build or
 leaves a stale permission behind.
 

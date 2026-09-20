@@ -57,6 +57,7 @@
       "claude-code"
       "google-chrome"
       "slack"
+      "vscode"
     ];
 
   time.timeZone = lib.mkDefault "UTC";

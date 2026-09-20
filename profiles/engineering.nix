@@ -147,6 +147,9 @@
         # Where the team actually talks. Unfree, so it also needs its
         # allowlist entry in profiles/base.nix (D20).
         slack
+        # Microsoft's build, not vscodium: it is what people expect, and the
+        # extension marketplace is the reason to use it. Also unfree (D20).
+        vscode
         ripgrep
         fd
         jq
