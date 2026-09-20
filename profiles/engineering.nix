@@ -117,10 +117,21 @@
 
     {
       services.printing.enable = true;
+
       services.pipewire = {
         enable = true;
+        # The PulseAudio server emulation. Chrome, Slack and Firefox all talk
+        # to PulseAudio rather than to PipeWire natively, so without this they
+        # find no devices at all even though the hardware is working.
         pulse.enable = true;
+        alsa.enable = true;
+        alsa.support32Bit = true;
       };
+
+      # PipeWire asks rtkit for realtime scheduling priority. Without it the
+      # daemon still runs, but at normal priority: audio glitches and drops
+      # under load. The NixOS pipewire module does not turn this on for you.
+      security.rtkit.enable = true;
 
       # Shared baseline. Not a restriction: developers install what they need
       # (docs/software-policy.md). Things that turn out to be broadly useful
