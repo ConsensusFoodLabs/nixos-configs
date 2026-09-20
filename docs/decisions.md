@@ -1197,3 +1197,60 @@ driverless IPP, which CUPS plus the Avahi added above already handles. Adding
 `gutenprint` and `hplip` speculatively would grow every machine's closure to
 support printers we have not met. When a specific printer fails, add the
 driver it needs and say which printer in the commit.
+
+## D38 — Three layers of home configuration, chosen by the machine
+
+**Decided:** a user's home-manager configuration is composed from layers in
+`modules/fleet/default.nix`, in this order:
+
+```
+modules/home-common.nix   every developer
+modules/home-i3           every user of a machine whose desktop = "i3"
+users/<name>/home.nix     that person
+```
+
+**Why:** everything the i3 session needed had been written into
+`users/oleg/home.nix`, because oleg's machine was the first and only one to
+run i3. None of it was personal. A second person switching to i3 would have
+found an empty desktop and no clue what was missing, and the obvious fix —
+copying oleg's file — is how two configurations start drifting on the day
+they are created.
+
+The split is by **whose decision it is**, not by what the setting touches:
+
+- **System** (`profiles/engineering.nix`): things the session needs in order
+  to be safe or to function regardless of anyone's preference. Screen
+  locking, the polkit agent, the notification daemon, the network applet,
+  automounting, battery warnings, the touchscreen mapping. A personal file
+  must not be able to remove these — without a polkit agent an authorisation
+  request fails with no prompt at all, and without a notification daemon the
+  battery warning goes nowhere.
+- **`modules/home-i3`**: the session's tools and defaults. Compositor,
+  launcher, bar, screenshots, cursor theme, terminal, dotfiles. Shared so
+  nobody rebuilds them, but every option is `lib.mkDefault` and every file is
+  overridable, so a personal file overrides by simply setting the same option
+  — no `mkForce`, no fighting.
+- **`users/<name>/home.nix`**: that person's own tooling. For oleg this is
+  now jujutsu, claude-code, telegram, yazi, sox and the two rclone Drive
+  mounts, and nothing else.
+
+Which layers apply is decided by the **machine's inventory entry**, not by
+the personal file. A developer cannot opt out of the i3 defaults by editing
+their own config; they change the machine's `desktop`. This is the same
+principle as D33 — the desktop is a fleet attribute because things hang off
+it — extended to the home configuration that goes with it.
+
+**On the i3 config being shared.** The workspace scheme and keybindings in
+`modules/home-i3/etc/i3/config` are one person's habits, and that is fine for
+a default. It is a starting point, not a house style. The terminal binding
+was changed back to `i3-sensible-terminal` to make this concrete: it honours
+`$TERMINAL`, which the layer sets with `mkDefault`, so changing your terminal
+is one line in your own file rather than a fork of the shared config.
+
+**Verified as a refactor, not a rewrite.** The pre-refactor home-manager
+generation was built from the previous commit and diffed against the new one.
+The only differences were the three units that moved to the system level, the
+terminal binding, and the store path embedded in the fontconfig file. The diff
+also caught a real regression: moving the nm-applet *unit* to the system level
+without its *package* took `nm-connection-editor` off PATH, which the bar's
+network block opens on click.

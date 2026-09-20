@@ -196,7 +196,18 @@ in
         };
       };
 
-      environment.systemPackages = [ mapTouchscreen pkgs.xinput ];
+      environment.systemPackages = [
+        mapTouchscreen
+        pkgs.xinput
+        # notify-send, so anything in the session can raise a notification.
+        pkgs.dunst
+        pkgs.libnotify
+        # nm-applet's tray icon comes from the unit above, but the package
+        # also carries nm-connection-editor, which the bar's network block
+        # opens on click. Moving the unit here without the package took that
+        # off PATH.
+        pkgs.networkmanagerapplet
+      ];
 
       # Brightness keys. acpilight provides an xbacklight-compatible command
       # that writes sysfs, which works on hardware where the X RANDR backlight
@@ -205,6 +216,45 @@ in
 
       # Bluetooth tray applet. GNOME has its own; i3 has nothing.
       services.blueman.enable = true;
+
+      # The three daemons a session needs in order to behave, rather than to
+      # look a particular way. They are here and not in modules/home-i3
+      # because a personal file must not be able to remove them: without the
+      # polkit agent an authorisation request fails with no prompt at all,
+      # and without a notification daemon the battery warning, the automount
+      # notice and the screenshot confirmation go nowhere (D38).
+      systemd.user.services.dunst = {
+        description = "dunst notification daemon";
+        wantedBy = [ "graphical-session.target" ];
+        partOf = [ "graphical-session.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.dunst}/bin/dunst";
+          Restart = "on-failure";
+        };
+      };
+
+      systemd.user.services.nm-applet = {
+        description = "NetworkManager applet";
+        wantedBy = [ "graphical-session.target" ];
+        partOf = [ "graphical-session.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.networkmanagerapplet}/bin/nm-applet";
+          Restart = "on-failure";
+        };
+      };
+
+      systemd.user.services.polkit-gnome-authentication-agent = {
+        description = "polkit authentication agent";
+        wantedBy = [ "graphical-session.target" ];
+        partOf = [ "graphical-session.target" ];
+        serviceConfig = {
+          ExecStart =
+            "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
+          Restart = "on-failure";
+        };
+      };
+
+
 
       # Automounting removable media.
       #

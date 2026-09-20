@@ -113,7 +113,17 @@ in
         useUserPackages = true;
         backupFileExtension = "backup";
         extraSpecialArgs = { inherit inventory person; };
-        users.${owner} = import ../../users/${owner}/home.nix;
+
+        # The layers, and the order that makes overriding work: shared
+        # defaults first, the personal file last. Which layers apply is
+        # decided by the machine's inventory entry, not by the personal file
+        # — a developer cannot opt out of the i3 defaults by editing their
+        # own config, they change the machine's desktop (D38).
+        users.${owner}.imports = [
+          ../../modules/home-common.nix
+        ]
+        ++ lib.optional (config.fleet.desktop == "i3") ../../modules/home-i3
+        ++ [ ../../users/${owner}/home.nix ];
       };
     })
 

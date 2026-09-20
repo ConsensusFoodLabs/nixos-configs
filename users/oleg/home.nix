@@ -1,92 +1,25 @@
 # Personal configuration for oleg.
 #
 # Light review: this file is yours. Add tooling, change the shell, restyle the
-# prompt. Shared defaults come from modules/home-common.nix and can be
-# overridden here.
+# prompt, override anything the shared layers set.
+#
+# The layers underneath are chosen by the machine, not by this file (D38):
+#   modules/home-common.nix   every developer
+#   modules/home-i3           every user of a machine whose inventory entry
+#                             says desktop = "i3"
+#
+# Both set their options with lib.mkDefault, so overriding one here is just
+# setting it again — no mkForce needed. To use a different terminal, set
+# home.sessionVariables.TERMINAL; to use a different i3 config, point
+# home.file.".config/i3/config".source at your own.
 #
 # What does not belong here: anything security-relevant (screen locking,
-# firewall, encryption, sudo). Those live at the system level (D14), and
-# administrator rights are granted in fleet/inventory.nix, not here (D12).
-#
-# In particular the i3 session's screen locking is declared in
-# profiles/engineering.nix. Nothing in this file can turn it off.
+# firewall, encryption, sudo, the polkit agent). Those live at the system
+# level (D14), and administrator rights are granted in fleet/inventory.nix,
+# not here (D12).
 { config, lib, pkgs, ... }:
 
 let
-  # Power menu for $mod+Shift+e. The reference config bound this to a vendored
-  # script that probed /usr/bin/betterlockscreen and /usr/bin/i3lock — both
-  # absent on NixOS, so its lock entry did nothing at all. This one asks
-  # logind, which is also what the $mod+Shift+x binding does.
-  rofiPowermenu = pkgs.writeShellApplication {
-    name = "rofi-powermenu";
-    # procps for uptime; coreutils `uname -n` rather than `hostname`, which
-    # coreutils does not install on NixOS.
-    runtimeInputs = with pkgs; [ rofi systemd coreutils procps i3 gnused ];
-    text = ''
-      lock=" lock"
-      suspend=" suspend"
-      logout=" log out"
-      reboot=" reboot"
-      shutdown=" shut down"
-
-      theme=$HOME/.config/rofi/powermenu.rasi
-
-      menu() {
-        rofi -dmenu -p "$(uname -n)" -mesg "up $(uptime -p | sed 's/^up //')" \
-          -theme "$theme"
-      }
-
-      confirm() {
-        printf 'no\nyes\n' |
-          rofi -dmenu -p confirm -mesg "$1" -theme "$theme" \
-            -theme-str 'listview { lines: 2; }'
-      }
-
-      chosen=$(printf '%s\n%s\n%s\n%s\n%s\n' \
-        "$lock" "$suspend" "$logout" "$reboot" "$shutdown" | menu)
-
-      case "$chosen" in
-        "$lock")     loginctl lock-session ;;
-        "$suspend")  systemctl suspend ;;
-        "$logout")   [ "$(confirm "log out?")" = yes ] && i3-msg exit ;;
-        "$reboot")   [ "$(confirm "reboot?")" = yes ] && systemctl reboot ;;
-        "$shutdown") [ "$(confirm "shut down?")" = yes ] && systemctl poweroff ;;
-      esac
-    '';
-  };
-
-  # Screenshots. There was no PrintScreen binding at all after the move off
-  # GNOME, which provided one.
-  #
-  # maim rather than flameshot: no tray icon, no daemon, nothing to keep
-  # running, and it composes with xclip. Every mode copies to the clipboard
-  # and also writes a dated file, so a screenshot is never lost to whatever
-  # lands in the clipboard next.
-  screenshot = pkgs.writeShellApplication {
-    name = "screenshot";
-    runtimeInputs = with pkgs; [ maim xclip xdotool libnotify coreutils ];
-    text = ''
-      dir=''${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots
-      mkdir -p "$dir"
-      file=$dir/$(date +%Y-%m-%d_%H-%M-%S).png
-
-      case "''${1:-screen}" in
-        screen) maim --hidecursor "$file" ;;
-        # --nokeyboard so Escape cancels the selection instead of being
-        # swallowed; maim exits non-zero, and that is not an error.
-        select) maim --nokeyboard --select "$file" || exit 0 ;;
-        window) maim --hidecursor --window "$(xdotool getactivewindow)" "$file" ;;
-        *) echo "usage: screenshot [screen|select|window]" >&2; exit 2 ;;
-      esac
-
-      [ -s "$file" ] || { rm -f "$file"; exit 0; }
-
-      xclip -selection clipboard -t image/png -i "$file"
-      notify-send "Screenshot" "copied to clipboard
-      $file" --icon=camera-photo
-    '';
-  };
-
   # An rclone FUSE mount as a user service.
   #
   # The remote itself is NOT configured here. `rclone config` writes OAuth
@@ -118,40 +51,12 @@ let
   };
 in
 {
-  imports = [ ../../modules/home-common.nix ];
-
   home.packages = with pkgs; [
     jujutsu
     claude-code
 
-    # Desktop. Chrome is not listed here: it is part of the shared baseline
-    # in profiles/engineering.nix, so every machine gets it (D20).
-    ghostty
     telegram-desktop
-    # rofi-emoji is a plugin: rofi only finds it inside its own lib/rofi, so
-    # it has to be built into the wrapper. Installing it alongside rofi would
-    # leave `rofi -modi emoji` reporting an unknown mode.
-    (rofi.override { plugins = [ rofi-emoji ]; })
-    rofiPowermenu
-    picom
-    dunst
-    libnotify
-    feh
-    # Point-and-click xrandr, for working out a layout worth saving with
-    # `autorandr --save`.
-    arandr
-    networkmanagerapplet
-    pavucontrol
-
-    # Needed on PATH by the i3 config and the i3blocks scripts: wpctl for
-    # volume, nmcli for the network block, dex for XDG autostart.
-    wireplumber
-    dex
-
-    # Icon theme named by rofi's config.rasi.
-    papirus-icon-theme
-
-    screenshot
+    sox
 
     # A file manager. GNOME had Files; i3 has whatever you install. Terminal
     # rather than graphical, to match what this setup came from.
@@ -159,117 +64,7 @@ in
     poppler-utils # PDF previews in yazi
 
     rclone
-    sox
   ];
-
-  home.sessionVariables = {
-    TERMINAL = "ghostty";
-  };
-
-  # One cursor theme and size, declared once.
-  #
-  # Nothing set these before, so every toolkit fell back to its own default —
-  # which is why the pointer changed size crossing into a Chrome window. The
-  # X server, GTK and Chrome each pick differently when XCURSOR_THEME and
-  # XCURSOR_SIZE are unset; GNOME papers over this by setting them for you and
-  # i3 does not.
-  #
-  # This writes ~/.icons/default/index.theme, the Xresources entries and the
-  # GTK settings together, so all three agree. Raise size if 24 is small on
-  # this panel.
-  home.pointerCursor = {
-    package = pkgs.adwaita-icon-theme;
-    name = "Adwaita";
-    size = 24;
-    x11.enable = true;
-    gtk.enable = true;
-  };
-
-  # home.pointerCursor's gtk.enable only sets gtk.cursorTheme; the settings
-  # file that GTK and Chrome actually read is written by this module, and
-  # without it the cursor size reaches everything except the GTK apps.
-  gtk.enable = true;
-
-  # i3, i3blocks, rofi and picom configuration, kept as plain files under
-  # users/oleg/etc rather than generated by home-manager's i3 module: these
-  # were ported from an existing setup and stay diffable against it.
-  home.file = {
-    ".config/i3/config".source = ./etc/i3/config;
-    ".config/i3blocks/config".source = ./etc/i3blocks/config;
-    ".config/i3blocks/blocks" = {
-      source = ./etc/i3blocks/blocks;
-      recursive = true;
-    };
-    ".config/rofi/config.rasi".source = ./etc/rofi/config.rasi;
-    ".config/rofi/colors.rasi".source = ./etc/rofi/colors.rasi;
-    ".config/rofi/launcher.rasi".source = ./etc/rofi/launcher.rasi;
-    ".config/rofi/powermenu.rasi".source = ./etc/rofi/powermenu.rasi;
-    ".config/rofi/calendar.rasi".source = ./etc/rofi/calendar.rasi;
-    ".config/picom/picom.conf".source = ./etc/picom/picom.conf;
-    # Theme names are the file names under ghostty's share/ghostty/themes,
-    # spaces included. onedark, to match the rofi themes.
-    ".config/ghostty/config".text = ''
-      theme = Atom One Dark
-      window-decoration = none
-    '';
-  };
-
-  # Notification daemon and network applet, as user services rather than i3
-  # `exec` lines, so they restart on failure and survive an i3 restart.
-  systemd.user.services.dunst = {
-    Unit = {
-      Description = "dunst notification daemon";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart = "${pkgs.dunst}/bin/dunst";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
-
-  # Compositor. A service rather than an i3 `exec_always`, which re-runs on
-  # every reload and restart and leaves the second instance failing with
-  # "Another composite manager is already running". systemd restarts it if it
-  # dies and never starts a second copy.
-  systemd.user.services.picom = {
-    Unit = {
-      Description = "picom compositor";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart = "${pkgs.picom}/bin/picom --config %h/.config/picom/picom.conf";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
-
-  systemd.user.services.nm-applet = {
-    Unit = {
-      Description = "NetworkManager applet";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart = "${pkgs.networkmanagerapplet}/bin/nm-applet";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
-
-  # A polkit agent, so anything asking for authorisation in the session gets a
-  # prompt instead of failing silently. GNOME provides one; i3 does not.
-  systemd.user.services.polkit-gnome-authentication-agent = {
-    Unit = {
-      Description = "polkit authentication agent";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart =
-        "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
 
   # Google Drive, mounted over FUSE.
   #

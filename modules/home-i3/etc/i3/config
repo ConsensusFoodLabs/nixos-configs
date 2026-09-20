@@ -51,10 +51,11 @@ bindsym $mod+Shift+x exec --no-startup-id loginctl lock-session
 floating_modifier $mod
 tiling_drag modifier titlebar
 
-# ghostty by name, not i3-sensible-terminal: the latter walks a fixed fallback
-# list that ghostty is not on, and $TERMINAL is not guaranteed to be set in a
-# session started by the display manager.
-bindsym $mod+Return exec ghostty
+# i3-sensible-terminal, which tries $TERMINAL first. modules/home-i3 sets
+# TERMINAL, and home-manager writes it into ~/.profile, which the X session
+# wrapper sources — so overriding TERMINAL in a personal home.nix changes the
+# terminal without anyone editing this shared file.
+bindsym $mod+Return exec i3-sensible-terminal
 bindsym $mod+Shift+q kill
 
 # Launcher and power menu. Plain commands on PATH, installed from
