@@ -982,3 +982,39 @@ generation in the boot menu, which is why D18 keeps it.
 Revisit when `soc-acpi-intel-ptl-match.c` gains a `0x4245`/`0x3563` entry and
 `sof-firmware` ships the matching topology; at that point this can go back to
 the channel default.
+
+## D35 — nix-ld, so prebuilt binaries run
+
+**Decided:** `programs.nix-ld.enable = true` in `profiles/engineering.nix`.
+
+**Why:** NixOS has no `/lib64/ld-linux-x86-64.so.2`. A binary built for any
+other Linux therefore fails to start with `No such file or directory`, naming
+the binary rather than the loader it actually could not find — one of the more
+confusing errors a developer can meet on their first week. nix-ld installs a
+loader at that path which finds libraries under `NIX_LD_LIBRARY_PATH`.
+
+This is not theoretical. VS Code's Remote-SSH server downloads a prebuilt
+node, many extensions ship prebuilt language servers, and several toolchains
+fetch their own binaries. We now ship VS Code fleet-wide (D20), so we would be
+shipping that failure fleet-wide with it.
+
+**Security position:** this grants no privilege and removes no control. It
+changes what is *convenient*, not what is *possible* — anyone could already
+run a downloaded binary via `nix shell`, a FHS environment, a container, or
+`patchelf`. D15 states plainly that we do not attempt to prevent developers
+installing and running software, and that any restriction strict enough to
+matter would stop them working. Making the ordinary case work follows from
+that decision rather than weakening it.
+
+What it does do is make "download a binary and run it" a frictionless path.
+That friction was never a control — it was an accident of the distribution,
+it stopped nobody determined, and it cost time from everybody else. Do not
+describe its removal to an auditor as a loosening of a control, because it was
+not one; see docs/software-policy.md for how to describe this area accurately.
+
+**Consequences:** the default library set comes from systemd and nix
+dependencies. A binary needing something outside it still fails, with a
+missing-library error that at least names what is missing. The fix is an entry
+in `programs.nix-ld.libraries`, which is a pull request against a
+tightly-reviewed file — acceptable friction, since it is rare and the error
+message says what to add.

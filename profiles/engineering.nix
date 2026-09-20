@@ -133,6 +133,22 @@
       # under load. The NixOS pipewire module does not turn this on for you.
       security.rtkit.enable = true;
 
+      # A dynamic loader at the path everything else on Linux expects.
+      #
+      # NixOS has no /lib64/ld-linux-x86-64.so.2, so a prebuilt binary that
+      # was not built for Nix dies with "No such file or directory" — which is
+      # about the least helpful error the kernel produces, since the file it
+      # cannot find is the loader, not the binary you named. VS Code's
+      # Remote-SSH server and a good number of extensions ship exactly such
+      # binaries, as do language toolchains that download their own.
+      #
+      # This grants no privilege and forbids nothing: it makes something work
+      # that developers can already do the long way round. D15 is explicit
+      # that we do not try to prevent software being installed, so making the
+      # normal case work is consistent with it rather than a retreat from it
+      # (D35).
+      programs.nix-ld.enable = true;
+
       # Shared baseline. Not a restriction: developers install what they need
       # (docs/software-policy.md). Things that turn out to be broadly useful
       # belong here so everyone gets them.
