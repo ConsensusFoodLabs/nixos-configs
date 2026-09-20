@@ -558,7 +558,18 @@ in one small artifact that is easy to store properly.
 **The cost, stated plainly:** lose every administrator identity and you lose
 every machine's recovery key, with nothing in this repository able to
 regenerate it. Back it up offline, in more than one place, before provisioning
-anything. Adding a second administrator is also the backup strategy.
+anything.
+
+**Two identities exist**, both currently held by one person: a working key and
+an offline backup on separate media. That is *durability*, not separation of
+duties — it removes the single-disk failure mode, and nothing else. Two copies
+of the same authority is not two approvers, and this must not be described as
+one. A second *administrator*, with their own key, remains outstanding.
+
+Adding a recipient to `.sops.yaml` does not re-encrypt anything. Existing files
+must be resynced, or the new identity decrypts nothing that already exists:
+
+    sops updatekeys fleet/secrets/<host>.yaml
 
 **How it is referenced:** everything reaches the identity through `.admin-key`
 at the repository root — gitignored, and normally a symlink to removable media.

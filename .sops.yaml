@@ -22,8 +22,15 @@ keys:
   # identity itself is reached through .admin-key, which is gitignored (D25).
   - &admin_oleg age1uxyklq3ga2tc5ex2u6kqazz672mrkgv0s0p05tez008z6wq4c35quwv0e4
 
+  # Offline backup identity, held on separate media. This is durability, not
+  # separation of duties: it is a second copy of the same authority, not a
+  # second person. Losing every identity means losing every machine's recovery
+  # key, and one key on one disk was a single point of failure (D25).
+  - &admin_backup age1wja7quwy4hd4fa9azycknrdmvn74a826ew02h7c2d2u8zf40ryws309h8s
+
 creation_rules:
   - path_regex: ^fleet/secrets/[^/]+\.yaml$
     key_groups:
       - age:
           - *admin_oleg
+          - *admin_backup
