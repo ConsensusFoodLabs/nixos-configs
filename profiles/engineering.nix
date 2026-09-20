@@ -431,6 +431,8 @@ in
         ripgrep
         fd
         jq
+        bat
+        btop
         tmux
         gnumake
       ];
