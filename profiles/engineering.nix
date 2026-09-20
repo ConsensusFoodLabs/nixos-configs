@@ -203,6 +203,9 @@ in
       # property does not exist. Users in `video` may use it.
       hardware.acpilight.enable = true;
 
+      # Bluetooth tray applet. GNOME has its own; i3 has nothing.
+      services.blueman.enable = true;
+
       services.libinput.enable = true;
 
       fonts.packages = with pkgs; [
@@ -217,6 +220,40 @@ in
 
     {
       services.printing.enable = true;
+
+      # Printer and service discovery on the local network.
+      #
+      # Browse-only: publish.enable stays at its default of false, so this
+      # machine asks who is on the network and never announces itself. That
+      # distinction matters on a laptop that joins cafe and hotel networks —
+      # openFirewall does open UDP 5353 to receive responses, which is the
+      # cost of discovery working at all.
+      services.avahi = {
+        enable = true;
+        nssmdns4 = true;
+        openFirewall = true;
+      };
+
+      # A secret store, so browsers and chat clients have somewhere safe to
+      # put credentials.
+      #
+      # GNOME ships this. i3 does not, and without a Secret Service on the
+      # bus Chrome silently falls back to its "basic" password store, which
+      # is plaintext in the profile directory — a regression that arrived
+      # with the desktop switch and looked like nothing at all (D37).
+      #
+      # pam_gnome_keyring unlocks the keyring with the login password. GDM
+      # handles the fingerprint-login case itself through pam_gdm, which
+      # retrieves the stored credential, so logging in with a finger does not
+      # leave the keyring locked.
+      services.gnome.gnome-keyring.enable = true;
+      security.pam.services.login.enableGnomeKeyring = true;
+
+      # Bluetooth, for headsets. PipeWire already handles the audio side.
+      hardware.bluetooth = {
+        enable = true;
+        powerOnBoot = false;
+      };
 
       # Fingerprint reader.
       #
@@ -326,7 +363,14 @@ in
         # unfree, so it also needs its allowlist entry in profiles/base.nix
         # (D20) — the two have to move together.
         firefox
-        google-chrome
+        # --password-store is not cosmetic. Chrome picks its credential store
+        # by sniffing the desktop environment, and under i3 it recognises
+        # nothing and chooses "basic", which writes passwords in plaintext.
+        # Naming the store explicitly is what makes gnome-keyring get used.
+        # Correct under GNOME too, where it is what would be chosen anyway.
+        (google-chrome.override {
+          commandLineArgs = "--password-store=gnome-libsecret";
+        })
         # Where the team actually talks. Unfree, so it also needs its
         # allowlist entry in profiles/base.nix (D20).
         slack

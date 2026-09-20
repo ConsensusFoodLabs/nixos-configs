@@ -120,6 +120,30 @@ whatever network the machine is on, including untrusted ones. Key-only
 authentication is what makes that acceptable rather than reckless; see D32 for
 what is and is not mitigated.
 
+## Screenshots (i3 machines)
+
+| Key | What |
+|---|---|
+| `Print` | whole screen |
+| `Shift+Print` | select a region |
+| `$mod+Print` | the focused window |
+
+Each copies the image to the clipboard and also writes
+`~/Pictures/screenshots/<date>.png`, so pasting later still works after the
+clipboard has moved on. Escape cancels a region selection.
+
+## Saved passwords
+
+Browsers and chat clients store credentials in gnome-keyring, which unlocks
+with your login password when you log in — including when you log in with a
+fingerprint.
+
+If something prompts for a "login keyring" password unexpectedly, it usually
+means the keyring password and the account password have drifted apart, which
+happens if the account password was changed by a route that did not go
+through PAM. `seahorse` (install it with `nix shell nixpkgs#seahorse`) can
+change the keyring password back.
+
 ## Fingerprint reader
 
 Nothing recognises your finger until you enrol it. Enrolment is per user, per

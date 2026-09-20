@@ -1109,3 +1109,54 @@ The judgement is that this is worth it at prompts where the alternative
 credential is a login password typed many times a day in a public place,
 where shoulder-surfing is the more realistic threat. It would not be worth it
 for disk encryption, which is why that is untouched.
+
+## D37 — Putting back what GNOME was quietly providing
+
+**Decided:** four additions to `profiles/engineering.nix`, all of them things
+the GNOME session supplied and the i3 session did not.
+
+Moving a machine to i3 (D33) was treated as a change of window manager. It was
+not. A desktop environment is a bundle of services, and dropping it drops all
+of them at once — silently, because nothing fails. Screen locking was caught
+at the time because it was obviously a security control. These were not.
+
+- **A secret store.** `services.gnome.gnome-keyring.enable`, with
+  `security.pam.services.login.enableGnomeKeyring` so it unlocks at login.
+  This is the one that mattered. With no Secret Service on the bus, Chrome
+  does not warn or refuse — it silently falls back to its `basic` password
+  store, which is **plaintext in the profile directory**. Every saved password
+  on the machine had been downgraded by a change about window management.
+
+  Chrome also picks its store by sniffing the desktop environment and
+  recognises nothing under i3, so `--password-store=gnome-libsecret` is passed
+  explicitly. Enabling the daemon alone would not have been enough, and would
+  have looked like it was.
+
+  Fingerprint login interacts with this: `pam_gnome_keyring` normally unlocks
+  the keyring with the password you just typed, and with a fingerprint there
+  is no such password. GDM handles it via `pam_gdm`, which retrieves the
+  stored credential; the rendered `gdm-fingerprint` stack was read back to
+  confirm `pam_gdm` sits between `pam_fprintd` and `pam_gnome_keyring`.
+
+- **Bluetooth.** `hardware.bluetooth.enable`, plus `services.blueman.enable`
+  on i3 for a tray applet. `powerOnBoot` is left off: the radio comes up when
+  asked for, not on every boot. PipeWire already handles the audio side.
+
+- **Service discovery.** `services.avahi`, browse-only —
+  `publish.enable` stays false, so the machine asks who is on the network and
+  never announces itself, which is the right posture for a laptop that joins
+  cafe and hotel networks. `openFirewall` does open UDP 5353 to receive
+  responses; that is the cost of discovery working at all, and it is a
+  deliberate hole rather than an incidental one.
+
+- **Screenshots.** No PrintScreen binding existed at all. `maim` driven by a
+  small script, bound to Print, Shift+Print and $mod+Print. Chosen over
+  flameshot because it needs no tray icon and no daemon. Every mode copies to
+  the clipboard *and* writes a dated file, so a screenshot is not lost to
+  whatever lands in the clipboard next.
+
+**The general lesson, which is the point of this entry:** the cost of leaving
+a desktop environment is not the window manager, it is the list of things it
+was doing that nobody had written down. When another machine changes
+`desktop` in the inventory, this list is the starting checklist — and it
+should be assumed incomplete.

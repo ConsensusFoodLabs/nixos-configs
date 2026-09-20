@@ -38,6 +38,12 @@ bindsym XF86MonBrightnessDown exec --no-startup-id xbacklight -dec 10
 # Dismiss notifications
 bindsym Control+Shift+space exec --no-startup-id dunstctl close
 
+# Screenshots. Each copies to the clipboard and writes a dated PNG under
+# ~/Pictures/screenshots.
+bindsym Print       exec --no-startup-id screenshot screen
+bindsym Shift+Print exec --no-startup-id screenshot select
+bindsym $mod+Print  exec --no-startup-id screenshot window
+
 # Lock now. Goes through logind so xss-lock runs the locker and the session is
 # marked locked; running i3lock directly would leave logind disagreeing.
 bindsym $mod+Shift+x exec --no-startup-id loginctl lock-session
