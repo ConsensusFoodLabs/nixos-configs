@@ -11,7 +11,17 @@
     enable = true;
     # Boot entries, not generations: the recovery mechanism for a bad update
     # is picking the previous generation here (D18).
-    configurationLimit = 20;
+    #
+    # The limit is set by the ESP, which is 1 GiB (hosts/*/disko.nix). Each
+    # entry costs a kernel plus an initrd — 54 MiB on this hardware today, and
+    # growing as firmware does. Twenty entries is 1096 MiB: over budget. An
+    # ESP with no room left fails the bootloader install during
+    # nixos-rebuild, which leaves fewer working entries than any limit would.
+    #
+    # Ten is ~540 MiB, leaving room for kernels to grow and for the transient
+    # extra copy while an update installs. If this is ever raised, check the
+    # arithmetic against the ESP first — `fleet-status` prints how full it is.
+    configurationLimit = 10;
   };
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -31,6 +41,20 @@
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
     auto-optimise-store = true;
+
+    # Collect garbage under disk pressure, not only on a schedule.
+    #
+    # The weekly timer below bounds how *old* generations get. It does
+    # nothing about a single afternoon that fills the disk — which is the
+    # failure that actually happens, and it happens mid-build, where the
+    # error is confusing and the work is lost.
+    #
+    # These make the daemon do it instead: when free space drops below
+    # min-free during a build, it collects until max-free is free and carries
+    # on. Roots are respected, so nothing in use or reachable from a live
+    # generation is touched.
+    min-free = 5 * 1024 * 1024 * 1024; # 5 GiB: start collecting
+    max-free = 20 * 1024 * 1024 * 1024; # 20 GiB: stop collecting
   };
 
   # Generation pruning, with a deliberate floor.
@@ -39,6 +63,9 @@
   # the boot menu is how a machine recovers from an update that breaks
   # networking, and these laptops have no Ethernet port. Do not lower this to
   # reclaim disk space — that trades away the recovery mechanism (D18).
+  # nix.gc.persistent defaults to true, which matters here: these are laptops,
+  # they are asleep at 03:15, and a non-persistent weekly timer on a machine
+  # that is never awake at the scheduled minute simply never runs.
   nix.gc = {
     automatic = true;
     dates = "weekly";

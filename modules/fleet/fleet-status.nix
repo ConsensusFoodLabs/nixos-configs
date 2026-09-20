@@ -15,7 +15,7 @@ let
 
   fleet-status = pkgs.writeShellApplication {
     name = "fleet-status";
-    runtimeInputs = with pkgs; [ nix git jq coreutils ];
+    runtimeInputs = with pkgs; [ nix git jq coreutils findutils ];
     text = ''
       rev=${lib.escapeShellArg (config.system.configurationRevision or "unknown")}
 
@@ -55,6 +55,32 @@ let
           echo "      fix with: sudo fleet-set-password $1"
         fi
       '') passwordFiles}
+
+      echo
+      echo "storage:"
+      printf '  %-9s %s free (%s used)\n' "/" \
+        "$(df -h --output=avail / | tail -n 1 | tr -d ' ')" \
+        "$(df -h --output=pcent / | tail -n 1 | tr -d ' ')"
+
+      # The boot partition is the one that bites. It is small, fixed, and
+      # holds a kernel and initrd per boot entry; when it fills, installing
+      # the bootloader fails and the rollback targets go with it.
+      if [ -d /boot/loader/entries ]; then
+        esp_pct=$(df --output=pcent /boot | tail -n 1 | tr -dc '0-9')
+        entries=$(find /boot/loader/entries -name '*.conf' | wc -l)
+        printf '  %-9s %s free (%s%% used), %s boot entries\n' "/boot" \
+          "$(df -h --output=avail /boot | tail -n 1 | tr -d ' ')" \
+          "$esp_pct" "$entries"
+        if [ "''${esp_pct:-0}" -ge 85 ]; then
+          echo "      WARNING: /boot is nearly full. A full ESP fails the"
+          echo "      bootloader install on the next rebuild, which costs you"
+          echo "      the rollback entries as well. Lower"
+          echo "      boot.loader.systemd-boot.configurationLimit."
+        fi
+      fi
+
+      gens=$(nix-env --list-generations --profile /nix/var/nix/profiles/system 2>/dev/null | wc -l)
+      printf '  %-9s %s\n' "generations" "$gens"
 
       echo
       echo "packages installed outside the declared baseline:"

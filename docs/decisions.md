@@ -411,6 +411,42 @@ with no Ethernet port. On a 256 GB disk it is tempting to prune aggressively,
 which would delete the recovery mechanism to save space. The floor is a safety
 control, not a housekeeping preference, and should carry a comment saying so.
 
+**Amended — there are two budgets, and this decision only described one.**
+
+Generations live on `/` and are bounded by time. Boot entries live on the
+**ESP**, which is 1 GiB, fixed at install, and holds a kernel and an initrd per
+entry. On current hardware that is 54 MiB each. The original
+`configurationLimit = 20` is therefore 1096 MiB of entries in a 1024 MiB
+partition — over budget as written, before counting kernel growth.
+
+This is worse than it sounds, because the failure is not "an old entry is
+missing". A full ESP fails the bootloader install during `nixos-rebuild`, so
+the machine stops being able to update *and* loses the rollback targets this
+decision exists to preserve. The control defeats itself at the limit.
+
+`configurationLimit` is now **10** (~540 MiB), which leaves room for kernels
+to grow and for the extra copy that exists transiently while an update
+installs. Ten entries is still far more than a rollback needs: the realistic
+case is "the update I ran today broke something", which wants the previous
+entry, not the twentieth.
+
+**Anyone raising this limit must check the arithmetic against the ESP first.**
+`fleet-status` now prints `/boot` usage and the entry count, and warns above
+85%, so the constraint is visible rather than something to rediscover.
+
+**Also added: collection under disk pressure.** `nix.settings.min-free` and
+`max-free` (5 GiB / 20 GiB). The weekly timer bounds how *old* generations
+get and does nothing about a single afternoon that fills the disk — which is
+the failure that actually occurred during this project, mid-build, where the
+error is confusing and the work is lost. With these set, the daemon collects
+when free space drops below `min-free` and continues the build. Roots are
+respected, so nothing reachable from a live generation is touched; this does
+not weaken the retention floor above.
+
+`nix.gc.persistent` defaults to true, which is load-bearing on a laptop: a
+weekly timer on a machine that is asleep at 03:15 every week otherwise never
+runs at all.
+
 ---
 
 ## D19 — One USB-C Ethernet adapter, for the office
