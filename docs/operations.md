@@ -132,6 +132,18 @@ Each copies the image to the clipboard and also writes
 `~/Pictures/screenshots/<date>.png`, so pasting later still works after the
 clipboard has moved on. Escape cancels a region selection.
 
+## USB sticks and external drives
+
+Removable media is mounted automatically under `/run/media/$USER/` when you
+plug it in, and a notification says where. Unmount from the tray icon, or:
+
+```
+udiskie-umount /run/media/$USER/<label>
+```
+
+Safe to remove once that returns. The tray icon is `udiskie`; if it is not
+running, `systemctl --user status udiskie`.
+
 ## Saved passwords
 
 Browsers and chat clients store credentials in gnome-keyring, which unlocks

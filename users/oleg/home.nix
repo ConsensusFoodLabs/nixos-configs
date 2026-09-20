@@ -153,6 +153,11 @@ in
 
     screenshot
 
+    # A file manager. GNOME had Files; i3 has whatever you install. Terminal
+    # rather than graphical, to match what this setup came from.
+    yazi
+    poppler-utils # PDF previews in yazi
+
     rclone
     sox
   ];

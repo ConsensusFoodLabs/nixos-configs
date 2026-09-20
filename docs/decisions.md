@@ -1159,4 +1159,41 @@ at the time because it was obviously a security control. These were not.
 a desktop environment is not the window manager, it is the list of things it
 was doing that nobody had written down. When another machine changes
 `desktop` in the inventory, this list is the starting checklist — and it
-should be assumed incomplete.
+should still be assumed incomplete.
+
+### Second pass
+
+The list above was written assuming it was incomplete, and it was. A
+follow-up audit of the remaining suspects found two more real gaps:
+
+- **Automounting.** `services.udisks2` is on by default, so it looked
+  covered. It was not: udisks2 only mounts when something asks it to, and
+  GNOME's Files was the thing asking. Inserting a USB stick produced no
+  mount, no icon and no error — the most expensive kind of missing, because
+  there is nothing to notice. `udiskie` as a user service does the asking.
+  `services.gvfs` comes with it, for trash and for phones over MTP.
+- **Battery warnings.** Nothing warned before the battery ran out. logind
+  acts at the very end, but there is no notice before that, so the first
+  signal was the machine going away with unsaved work. `poweralertd` is a
+  user service now. The bar's battery block turning red at 15% is not a
+  substitute: it only works if you happen to be looking at the bar.
+
+And two that turned out not to be problems, recorded so they are not
+re-investigated:
+
+- **Screen sharing did not need portals.** Chrome and Slack capture through
+  X11 directly on an X session; the portal path matters on Wayland. Portals
+  are enabled anyway, with `xdg-desktop-portal-gtk` and an explicit
+  `config.common.default`, because file choosers do ask for them and a
+  portal with no declared default can leave a request waiting for a backend
+  to volunteer. That is insurance, not a fix.
+- **gnome-settings-daemon's remaining jobs were already covered.** GTK
+  settings reach applications through the files written in D33's cursor work
+  rather than through an XSettings daemon; media keys are bound in the i3
+  config; lid and power-button handling is logind's. No `xsettingsd` needed.
+
+**Printer drivers were deliberately not added.** Modern network printers are
+driverless IPP, which CUPS plus the Avahi added above already handles. Adding
+`gutenprint` and `hplip` speculatively would grow every machine's closure to
+support printers we have not met. When a specific printer fails, add the
+driver it needs and say which printer in the commit.

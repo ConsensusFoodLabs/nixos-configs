@@ -206,6 +206,38 @@ in
       # Bluetooth tray applet. GNOME has its own; i3 has nothing.
       services.blueman.enable = true;
 
+      # Automounting removable media.
+      #
+      # udisks2 is already running — it is on by default — but it only ever
+      # mounts when something asks. GNOME's Files was the thing asking. With
+      # no desktop, inserting a USB stick does nothing observable at all:
+      # no error, no icon, no mount.
+      systemd.user.services.udiskie = {
+        description = "Automount removable media";
+        wantedBy = [ "graphical-session.target" ];
+        partOf = [ "graphical-session.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.udiskie}/bin/udiskie --tray --automount --notify";
+          Restart = "on-failure";
+        };
+      };
+
+      # Battery warnings.
+      #
+      # Nothing else tells you the battery is nearly flat. logind will act at
+      # the very end, but there is no warning before it, so the first signal
+      # is the machine going away with unsaved work. The bar's battery block
+      # turns red at 15%, which only helps if you are looking at it.
+      systemd.user.services.poweralertd = {
+        description = "Battery and power notifications";
+        wantedBy = [ "graphical-session.target" ];
+        partOf = [ "graphical-session.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.poweralertd}/bin/poweralertd";
+          Restart = "on-failure";
+        };
+      };
+
       services.libinput.enable = true;
 
       fonts.packages = with pkgs; [
@@ -233,6 +265,25 @@ in
         nssmdns4 = true;
         openFirewall = true;
       };
+
+      # Portals, so an application asking the desktop to open a file picker or
+      # share a screen gets an answer.
+      #
+      # Less load-bearing than it looks on X11: Chrome and Slack capture the
+      # screen through X11 directly and do not need a portal for it. The
+      # reason to have one is the applications that ask for a portal first and
+      # degrade awkwardly when nothing answers — file choosers mainly. The
+      # explicit `config.common.default` matters: with a portal enabled and no
+      # default set, requests can hang waiting for a backend to volunteer.
+      xdg.portal = {
+        enable = true;
+        extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+        config.common.default = [ "gtk" ];
+      };
+
+      # Trash, phones over MTP, and network shares. GNOME pulls this in; on
+      # its own, "move to trash" fails and a plugged-in phone is invisible.
+      services.gvfs.enable = true;
 
       # A secret store, so browsers and chat clients have somewhere safe to
       # put credentials.
