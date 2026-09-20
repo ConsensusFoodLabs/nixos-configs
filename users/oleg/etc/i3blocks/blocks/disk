@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Free space on the filesystem named by $BLOCK_INSTANCE (default /).
+set -euo pipefail
+
+mount=${BLOCK_INSTANCE:-/}
+
+read -r _ _ _ avail percent _ < <(df -h --output=source,size,used,avail,pcent,target "$mount" | tail -n 1)
+
+echo "DISK $avail"
+echo "$avail"
+
+# df prints the used percentage; warn when little is left.
+if [[ ${percent%\%} -ge 90 ]]; then
+  echo "#cc241d"
+  exit 33
+fi

@@ -51,12 +51,25 @@ in
         file (D12).
       '';
     };
+
+    desktop = lib.mkOption {
+      type = lib.types.enum [ "gnome" "i3" ];
+      readOnly = true;
+      description = ''
+        Which desktop session this machine boots into. Set per device in
+        fleet/inventory.nix, read by profiles/engineering.nix.
+
+        An enum rather than a free string: a typo must fail the build, not
+        silently land on a session with no screen locking (D14).
+      '';
+    };
   };
 
   config = lib.mkMerge [
     {
       fleet.user = owner;
       fleet.admin = person.admin;
+      fleet.desktop = device.desktop or "gnome";
       fleet.repoUrl = "https://github.com/ConsensusFoodLabs/nixos-configs";
       fleet.flakeRef = "git+" + config.fleet.repoUrl;
 
@@ -84,7 +97,10 @@ in
       users.users.${owner} = {
         isNormalUser = true;
         description = person.fullName;
-        extraGroups = [ "networkmanager" ] ++ lib.optional person.admin "wheel";
+        # video: brightness control writes /sys/class/backlight, which
+        # acpilight's udev rules make group-writable (profiles/engineering.nix).
+        extraGroups = [ "networkmanager" "video" ]
+          ++ lib.optional person.admin "wheel";
 
         # Not in this repository: the hash is created on the machine at
         # provisioning time. A public repo is no place for a password hash,

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Volume of the default PipeWire sink. Click to mute, scroll to adjust.
+set -euo pipefail
+
+sink=@DEFAULT_AUDIO_SINK@
+
+case "${BLOCK_BUTTON:-}" in
+  1) wpctl set-mute "$sink" toggle ;;
+  4) wpctl set-volume -l 1.5 "$sink" 5%+ ;;
+  5) wpctl set-volume "$sink" 5%- ;;
+esac
+
+# `wpctl get-volume` prints e.g. "Volume: 0.45" or "Volume: 0.45 [MUTED]".
+read -r _ level rest < <(wpctl get-volume "$sink")
+percent=$(awk -v v="$level" 'BEGIN { printf "%d", v * 100 + 0.5 }')
+
+if [[ $rest == *MUTED* ]]; then
+  echo "VOL mute"
+  echo "VOL mute"
+  echo "#928374"
+else
+  echo "VOL ${percent}%"
+  echo "VOL ${percent}%"
+fi

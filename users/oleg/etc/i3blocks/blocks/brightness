@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Backlight level. Scroll to adjust; xbacklight here is acpilight, which
+# writes sysfs and does not need an X RANDR backlight property.
+set -euo pipefail
+
+case "${BLOCK_BUTTON:-}" in
+  4) xbacklight -inc 5 ;;
+  5) xbacklight -dec 5 ;;
+esac
+
+raw=$(xbacklight -get 2>/dev/null) || exit 0
+[[ -n $raw ]] || exit 0
+level=$(printf '%.0f' "$raw")
+echo "LIGHT ${level}%"
+echo "${level}%"

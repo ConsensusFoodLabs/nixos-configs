@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Date and time. Click for a calendar popup.
+set -euo pipefail
+
+case "${BLOCK_BUTTON:-}" in
+  1|2|3)
+    month=$(date '+%m')
+    year=$(date '+%Y')
+    TERM=xterm cal --color=always "$month" "$year" |
+      sed -e 's/\x1b\[[7;]*m/<b><u>/g' -e 's/\x1b\[[27;]*m/<\/u><\/b>/g' |
+      tail -n +2 |
+      rofi -dmenu -markup-rows -no-fullscreen -font "Monospace 12" \
+        -hide-scrollbar -no-custom -lines 7 -width -24 \
+        -theme-str '#window { anchor: southeast; location: northwest; }' \
+        -p "$(date '+%A, %d %B')" >/dev/null
+    ;;
+esac
+
+date '+%a %Y-%m-%d %H:%M:%S'
+date '+%d.%m %H:%M'

@@ -1,0 +1,34 @@
+# i3blocks bar for oleg.
+#
+# The upstream i3blocks-contrib scripts this replaces were written for Arch and
+# carried API keys and a mail password in the clear. These are rewritten
+# against what the machine actually runs — PipeWire, NetworkManager, sysfs —
+# and hold no credentials. Nothing here may ever need one; a block that wants
+# a secret is a block that does not belong in a public repository.
+
+command=~/.config/i3blocks/blocks/$BLOCK_NAME
+separator_block_width=15
+markup=none
+
+[volume]
+interval=1
+signal=10
+
+[memory]
+interval=5
+
+[disk]
+instance=/
+interval=60
+
+[net]
+interval=10
+
+[battery]
+interval=30
+
+[brightness]
+interval=10
+
+[datetime]
+interval=1

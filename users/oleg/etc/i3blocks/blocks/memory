@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Used memory as a share of total, from /proc/meminfo.
+set -euo pipefail
+
+read -r total available < <(
+  awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 } END { print t, a }' \
+    /proc/meminfo
+)
+
+used=$(( total - available ))
+percent=$(( used * 100 / total ))
+gib=$(awk -v k="$used" 'BEGIN { printf "%.1f", k / 1048576 }')
+
+echo "MEM ${gib}G"
+echo "MEM ${percent}%"
+
+if [[ $percent -ge 90 ]]; then
+  echo "#cc241d"
+  exit 33
+fi

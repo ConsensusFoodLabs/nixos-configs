@@ -1,0 +1,143 @@
+/**
+ * rofi configuration for oleg.
+ *
+ * The reference config pulled in adi1090x's theme collection — some 200 files
+ * of .rasi, shell and wallpaper images. That is a lot of third-party content
+ * to vendor into a public company repository for a launcher, so the theme is
+ * inlined here instead. Same gruvbox-dark palette, one file.
+ */
+
+configuration {
+	modi: "drun,run,window";
+	case-sensitive: false;
+	cycle: true;
+	scroll-method: 0;
+	normalize-match: true;
+	show-icons: true;
+	icon-theme: "Papirus";
+	steal-focus: false;
+
+	matching: "normal";
+	tokenize: true;
+
+	drun-match-fields: "name,generic,exec,categories,keywords";
+	drun-display-format: "{name}";
+	drun-show-actions: false;
+
+	display-drun: "apps";
+	display-run: "run";
+	display-window: "window";
+	show-match: true;
+	sort: true;
+	sorting-method: "normal";
+
+	terminal: "i3-sensible-terminal";
+	kb-cancel: "Escape,super+d";
+}
+
+* {
+	background:     #1d2021;
+	background-alt: #282828;
+	foreground:     #ebdbb2;
+	selected:       #458588;
+	active:         #98971a;
+	urgent:         #cc241d;
+
+	font: "DejaVu Sans Mono 11";
+}
+
+window {
+	transparency:     "real";
+	location:         center;
+	anchor:           center;
+	fullscreen:       false;
+	width:            600px;
+	border:           2px;
+	border-color:     @selected;
+	border-radius:    8px;
+	background-color: @background;
+}
+
+mainbox {
+	background-color: transparent;
+	children:         [ "inputbar", "listview" ];
+	padding:          12px;
+	spacing:          10px;
+}
+
+inputbar {
+	background-color: @background-alt;
+	text-color:       @foreground;
+	border-radius:    6px;
+	padding:          8px 12px;
+	spacing:          8px;
+	children:         [ "prompt", "entry" ];
+}
+
+prompt {
+	background-color: transparent;
+	text-color:       @selected;
+}
+
+entry {
+	background-color: transparent;
+	text-color:       @foreground;
+	placeholder:      "search";
+	placeholder-color: #928374;
+}
+
+listview {
+	background-color: transparent;
+	columns:          1;
+	lines:            10;
+	cycle:            true;
+	scrollbar:        false;
+	spacing:          4px;
+}
+
+element {
+	background-color: transparent;
+	text-color:       @foreground;
+	border-radius:    6px;
+	padding:          6px 10px;
+	spacing:          10px;
+}
+
+element selected.normal {
+	background-color: @selected;
+	text-color:       @background;
+}
+
+element normal.active,
+element alternate.active {
+	background-color: @active;
+	text-color:       @background;
+}
+
+element normal.urgent,
+element alternate.urgent {
+	background-color: @urgent;
+	text-color:       @background;
+}
+
+element-icon {
+	background-color: transparent;
+	size:             24px;
+}
+
+element-text {
+	background-color: transparent;
+	text-color:       inherit;
+	vertical-align:   0.5;
+}
+
+message {
+	background-color: @background-alt;
+	border-radius:    6px;
+	padding:          8px;
+}
+
+textbox {
+	background-color: transparent;
+	text-color:       @foreground;
+}

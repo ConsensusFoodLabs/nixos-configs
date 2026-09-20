@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Battery charge and state, read from sysfs rather than acpi(1) so the block
+# has no dependency beyond coreutils.
+set -euo pipefail
+
+bat=/sys/class/power_supply/BAT0
+[[ -d $bat ]] || exit 0
+
+capacity=$(< "$bat/capacity")
+status=$(< "$bat/status")
+
+case $status in
+  Charging) mark="+" ;;
+  Discharging) mark="-" ;;
+  *) mark="=" ;;
+esac
+
+echo "BAT ${mark}${capacity}%"
+echo "${mark}${capacity}%"
+
+if [[ $status == Discharging && $capacity -le 15 ]]; then
+  echo "#cc241d"
+  exit 33
+fi
+exit 0

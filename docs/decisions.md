@@ -427,8 +427,17 @@ difference between "drive over with a dongle" and "reinstall".
 ## D20 — Unfree packages allowed by name, not blanket-enabled
 
 **Decided:** `nixpkgs.config.allowUnfreePredicate` with an explicit allowlist in
-`profiles/base.nix`, rather than `allowUnfree = true`. Currently one entry:
-`claude-code`.
+`profiles/base.nix`, rather than `allowUnfree = true`. Currently two entries:
+`claude-code` and `google-chrome`.
+
+**Amended:** `google-chrome` is in the shared baseline in
+`profiles/engineering.nix`, alongside Firefox — every engineering machine gets
+both. This is the first unfree package we ship fleet-wide rather than to one
+person, which is exactly the question this allowlist exists to make answerable:
+"what proprietary software runs on these machines" is answered by two lines in
+one tightly-reviewed file. The allowlist entry and the baseline entry have to
+move together — removing one without the other either breaks the build or
+leaves a stale permission behind.
 
 **Why:** this is a *licensing* control, not a security one. It makes the set of
 proprietary software shipped fleet-wide reviewable in one place and answers
@@ -483,6 +492,12 @@ configuration.
 change. If the team prefers something else, the thing to preserve is that
 screen locking stays a system-level declaration rather than a personal
 preference.
+
+**Amended (D33):** GNOME is now the *default* rather than the only option.
+`fleet/inventory.nix` picks a session per device and `profiles/engineering.nix`
+branches on it; `x1c-oleg` runs i3. The thing this decision said to preserve
+was preserved — see D33 for how i3's locking is declared, and why the choice
+is a fleet attribute rather than a home-manager one.
 
 ---
 
@@ -841,3 +856,59 @@ immediate.
   TOD driver rather than plain libfprint, so support may be full, blob-dependent,
   or absent. Cheap to test with `fprintd-enroll` on the running machine. Not a
   blocker either way.
+
+## D33 — The desktop session is a fleet attribute, because screen locking rides on it
+
+`fleet/inventory.nix` gained a `desktop` attribute per device, read by
+`profiles/engineering.nix` through the `fleet.desktop` option. `x1c-oleg` is
+`i3`; anything that does not say otherwise is `gnome`.
+
+The obvious place for "which window manager do I use" is the owner's own
+home-manager file, under light review (D14). It does not go there, and the
+reason is narrow: **a desktop environment carries a screen lock, and screen
+locking is a security control.** GNOME ships one. i3 does not — it ships
+nothing at all, and a session with no locker configured is an unlocked laptop
+the moment its owner walks away. If choosing i3 were a home-manager change,
+then removing the fleet's only screen lock would be a lightly-reviewed one.
+
+So the choice lives at the system level, and each branch of the conditional is
+responsible for declaring locking for its own session. For i3 that is two
+pieces, and both are required:
+
+- `programs.xss-lock` handles the event-driven cases — suspend, lid close, and
+  `loginctl lock-session`. It deliberately does not pass `--ignore-sleep`, so
+  the screen is locked *before* the machine suspends rather than after it
+  wakes.
+- `services.xserver.xautolock` handles the idle case, at five minutes, matching
+  the GNOME branch's `idle-delay=300`. It invokes `loginctl lock-session`
+  rather than `i3lock` directly, so the lock goes through xss-lock and logind
+  agrees the session is locked.
+
+`fleet.desktop` is an `enum`, not a `str`, for the same reason: a typo must
+fail the build rather than quietly select a branch that declares no locking.
+**Adding a third desktop means declaring locking for it in the same commit.**
+
+The owner's i3 config binds `$mod+Shift+x` to `loginctl lock-session`. That
+binding is a convenience; it is not the control. Deleting it changes nothing
+about whether the machine locks itself.
+
+### What did not come across from the reference configuration
+
+The i3 setup was ported from a personal repository. Three things were left
+behind deliberately:
+
+- **Credentials.** The upstream `i3blocks` blocks carried a Gmail password, an
+  OpenWeatherMap API key, and an admin URL with a password embedded in it, all
+  in cleartext. This repository is public (D1). The blocks were rewritten
+  against what the machine actually runs — PipeWire, NetworkManager, sysfs —
+  and none of them takes a secret. A status bar block that needs a credential
+  does not belong here.
+- **A vendored theme tree.** The rofi configuration referenced some 200 files
+  of third-party themes, scripts and wallpapers. That is a large amount of
+  unreviewed third-party content to carry in a company repository for a
+  launcher; the theme is inlined in one `config.rasi` instead.
+- **Arch-isms that failed silently.** The reference power menu probed
+  `/usr/bin/betterlockscreen` and `/usr/bin/i3lock` — neither exists on NixOS,
+  so its "lock" entry did nothing whatsoever. This is the failure mode the
+  system-level declaration exists to prevent: a lock that looks configured and
+  is not.

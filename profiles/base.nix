@@ -55,6 +55,7 @@
   nixpkgs.config.allowUnfreePredicate = pkg:
     builtins.elem (lib.getName pkg) [
       "claude-code"
+      "google-chrome"
     ];
 
   time.timeZone = lib.mkDefault "UTC";

@@ -28,11 +28,19 @@
   };
 
   devices = {
-    # hostname = { model; assignedTo; profile; }
+    # hostname = { model; assignedTo; profile; desktop ? "gnome"; }
+    #
+    # `desktop` picks the session the machine boots into. It is here rather
+    # than in anyone's home configuration because a desktop brings its own
+    # screen locking with it, and screen locking is a security control that
+    # light review must not be able to remove (D14). Each value in
+    # profiles/engineering.nix declares its own locking; adding a third means
+    # declaring locking for it too.
     "x1c-oleg" = {
       model = "thinkpad-x1c-gen14";
       assignedTo = "oleg";
       profile = "engineering";
+      desktop = "i3";
     };
   };
 }

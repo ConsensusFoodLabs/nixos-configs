@@ -120,6 +120,29 @@ whatever network the machine is on, including untrusted ones. Key-only
 authentication is what makes that acceptable rather than reckless; see D32 for
 what is and is not mitigated.
 
+## Google Drive (rclone)
+
+Machines whose home configuration declares rclone mounts ship the systemd user
+units but **not** the remotes. Until you run `rclone config`, the units fail on
+every start and `~/cfoods/mnt/*` stays empty:
+
+```
+systemctl --user status rclone-cfoods-oleg
+```
+
+Create the remotes once, naming them exactly as the unit expects
+(`cfoods-oleg`, `cfoods-shared`), then start them:
+
+```
+rclone config
+systemctl --user start rclone-cfoods-oleg rclone-cfoods-shared
+```
+
+This step is manual on purpose. `rclone config` writes an OAuth **refresh
+token** to `~/.config/rclone/rclone.conf`, which is a live credential for the
+whole Drive account — it stays on the machine and never reaches this
+repository. There is nothing to provision and nothing to check in.
+
 ## Installing software
 
 Install what you need, when you need it. The declared baseline is what every

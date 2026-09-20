@@ -1,0 +1,193 @@
+# i3 configuration for oleg.
+#
+# Ported from mingaleg/nixos-config etc/i3/config, with the parts that only
+# worked on Arch replaced: no /usr/lib paths, no xbacklight assumptions, and
+# no vendored rofi theme tree.
+#
+# Screen locking is NOT configured here. xss-lock and xautolock are declared
+# at the system level in profiles/engineering.nix, because a lock this file
+# could remove would not be a control (D14). The binding below only asks
+# logind to lock; it cannot disable locking.
+
+set $mod Mod4
+
+font pango:monospace 8
+focus_follows_mouse no
+
+# XDG autostart
+exec --no-startup-id dex --autostart --environment i3
+
+# Network applet and notification daemon. Both are user services on this
+# machine, started by graphical-session.target, so they are not exec'd here.
+
+# Compositor, to stop tearing on Intel graphics.
+exec_always --no-startup-id picom --config ~/.config/picom/picom.conf -b
+
+# Volume. wpctl, not pactl or amixer: the machine runs PipeWire with
+# WirePlumber, and wpctl is the one that is always present.
+bindsym XF86AudioRaiseVolume exec --no-startup-id wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+
+bindsym XF86AudioLowerVolume exec --no-startup-id wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bindsym XF86AudioMute        exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+bindsym XF86AudioMicMute     exec --no-startup-id wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+
+# Brightness. xbacklight here is acpilight's sysfs implementation.
+bindsym XF86MonBrightnessUp   exec --no-startup-id xbacklight -inc 10
+bindsym XF86MonBrightnessDown exec --no-startup-id xbacklight -dec 10
+
+# Dismiss notifications
+bindsym Control+Shift+space exec --no-startup-id dunstctl close
+
+# Lock now. Goes through logind so xss-lock runs the locker and the session is
+# marked locked; running i3lock directly would leave logind disagreeing.
+bindsym $mod+Shift+x exec --no-startup-id loginctl lock-session
+
+floating_modifier $mod
+tiling_drag modifier titlebar
+
+# ghostty by name, not i3-sensible-terminal: the latter walks a fixed fallback
+# list that ghostty is not on, and $TERMINAL is not guaranteed to be set in a
+# session started by the display manager.
+bindsym $mod+Return exec ghostty
+bindsym $mod+Shift+q kill
+
+# Launcher and power menu. Plain commands on PATH, installed from
+# users/oleg/home.nix, rather than scripts under ~/.config.
+bindsym $mod+d exec --no-startup-id rofi -show drun
+bindsym $mod+i exec --no-startup-id rofi -modi emoji -show emoji
+bindsym $mod+Shift+e exec --no-startup-id rofi-powermenu
+
+# change focus
+bindsym $mod+h focus left
+bindsym $mod+j focus up
+bindsym $mod+k focus down
+bindsym $mod+l focus right
+
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# move focused window
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move up
+bindsym $mod+Shift+k move down
+bindsym $mod+Shift+l move right
+
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+bindsym $mod+Shift+5 split h
+bindsym $mod+v split v
+
+bindsym $mod+f fullscreen toggle
+
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+Shift+t sticky toggle
+bindsym $mod+space focus mode_toggle
+bindsym $mod+a focus parent
+
+# Workspaces
+set $ws_web "1:web"
+set $ws_code "2:code"
+set $ws_term "3:term"
+set $ws0 "50:aux_0"
+set $ws1 "51:aux_1"
+set $ws2 "52:aux_2"
+set $ws3 "53:aux_3"
+set $ws4 "54:aux_4"
+set $ws5 "55:aux_5"
+set $ws6 "56:aux_6"
+set $ws7 "57:aux_7"
+set $ws8 "58:aux_8"
+set $ws9 "59:aux_9"
+set $ws_plan "98:plan"
+set $ws_social "99:social"
+
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+r restart
+
+mode "resize" {
+        bindsym h resize shrink width 10 px or 10 ppt
+        bindsym j resize grow height 10 px or 10 ppt
+        bindsym k resize shrink height 10 px or 10 ppt
+        bindsym l resize grow width 10 px or 10 ppt
+
+        bindsym Left resize shrink width 10 px or 10 ppt
+        bindsym Down resize grow height 10 px or 10 ppt
+        bindsym Up resize shrink height 10 px or 10 ppt
+        bindsym Right resize grow width 10 px or 10 ppt
+
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+        bindsym $mod+r mode "default"
+}
+bindsym $mod+r mode "resize"
+
+mode "go" {
+        bindsym w workspace number $ws_web; mode "default"
+        bindsym c workspace number $ws_code; mode "default"
+        bindsym t workspace number $ws_term; mode "default"
+        bindsym 0 workspace number $ws0; mode "default"
+        bindsym 1 workspace number $ws1; mode "default"
+        bindsym 2 workspace number $ws2; mode "default"
+        bindsym 3 workspace number $ws3; mode "default"
+        bindsym 4 workspace number $ws4; mode "default"
+        bindsym 5 workspace number $ws5; mode "default"
+        bindsym 6 workspace number $ws6; mode "default"
+        bindsym 7 workspace number $ws7; mode "default"
+        bindsym 8 workspace number $ws8; mode "default"
+        bindsym 9 workspace number $ws9; mode "default"
+        bindsym p workspace number $ws_plan; mode "default"
+        bindsym s workspace number $ws_social; mode "default"
+
+        bindsym Shift+w move container to workspace number $ws_web; mode "default"
+        bindsym Shift+c move container to workspace number $ws_code; mode "default"
+        bindsym Shift+t move container to workspace number $ws_term; mode "default"
+        bindsym Shift+0 move container to workspace number $ws0; mode "default"
+        bindsym Shift+1 move container to workspace number $ws1; mode "default"
+        bindsym Shift+2 move container to workspace number $ws2; mode "default"
+        bindsym Shift+3 move container to workspace number $ws3; mode "default"
+        bindsym Shift+4 move container to workspace number $ws4; mode "default"
+        bindsym Shift+5 move container to workspace number $ws5; mode "default"
+        bindsym Shift+6 move container to workspace number $ws6; mode "default"
+        bindsym Shift+7 move container to workspace number $ws7; mode "default"
+        bindsym Shift+8 move container to workspace number $ws8; mode "default"
+        bindsym Shift+9 move container to workspace number $ws9; mode "default"
+        bindsym Shift+p move container to workspace number $ws_plan; mode "default"
+        bindsym Shift+s move container to workspace number $ws_social; mode "default"
+
+        bindsym Shift+greater move workspace to output right; mode "default"
+        bindsym Shift+less move workspace to output left; mode "default"
+
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+        bindsym $mod+r mode "default"
+}
+bindsym $mod+g mode "go"
+
+bar {
+        status_command i3blocks
+        font pango:DejaVu Sans Mono 8
+        colors {
+                background #1d2021
+                statusline #ebdbb2
+                separator  #665c54
+        }
+}
+
+# Remove titlebars
+for_window [class="Alacritty"] border pixel 1
+for_window [class="com.mitchellh.ghostty"] border pixel 1
+for_window [class="Slack"] border pixel 1
+for_window [class="Google-chrome"] border none
+
+# Workspace assignments
+assign [class="Google-chrome"] $ws_web
+assign [class="Code"] $ws_code
+assign [class="Slack"] $ws_social
