@@ -24,17 +24,21 @@ usage: fleet-install [--host HOST] [--identity FILE] [--ref REF] [--check]
                    searched for fleet-admin-key.txt or .admin-key.
   --ref REF        Branch or tag to install from. Default: main.
   --check          Verify everything and stop before the disk is touched.
+  --keep-key       Do not wipe the key partition after installing. Use when
+                   provisioning several machines from one stick; wipe with
+                   fleet-wipe-key when the batch is done.
 MSG
     exit 2
 }
 
-host="" identity="" ref=main check=0
+host="" identity="" ref=main check=0 keep_key=0
 while (($#)); do
     case "$1" in
         --host) host=${2:?--host needs a value}; shift ;;
         --identity) identity=${2:?--identity needs a value}; shift ;;
         --ref) ref=${2:?--ref needs a value}; shift ;;
         --check) check=1 ;;
+        --keep-key) keep_key=1 ;;
         -h | --help) usage ;;
         *) echo "fleet-install: unknown argument $1" >&2; usage ;;
     esac
@@ -113,6 +117,10 @@ echo "luks device  $luks"
 # media, and that has to be visible to the cleanup trap rather than lost in a
 # command substitution's subshell.
 id_file=""
+# The partition the key was read from, when it was found on removable media.
+# Empty means there is nothing to wipe: the key came from --identity, from
+# SOPS_AGE_KEY_FILE, or from somewhere that is not a removable partition.
+id_source_dev=""
 tried=""
 find_identity() {
     local cand dev name
@@ -125,7 +133,15 @@ find_identity() {
     for cand in /run/media/*/fleet-admin-key.txt /run/media/*/.admin-key \
         /mnt/fleet-admin-key.txt /mnt/.admin-key \
         /root/fleet-admin-key.txt /root/.admin-key; do
-        [[ -r $cand ]] && { id_file=$cand; return 0; }
+        if [[ -r $cand ]]; then
+            id_file=$cand
+            # Already-mounted media: ask what it is mounted from, so this
+            # case can be wiped like the others. /root is on the live
+            # filesystem and resolves to something that is not a partition,
+            # which the wipe guard below rejects.
+            id_source_dev=$(findmnt -no SOURCE --target "$cand" 2>/dev/null || true)
+            return 0
+        fi
     done
 
     mkdir -p "$work/media"
@@ -148,6 +164,7 @@ find_identity() {
             if MTOOLS_SKIP_CHECK=1 mcopy -n -i "$dev" "::$name" \
                 "$work/identity" 2>/dev/null && [[ -s $work/identity ]]; then
                 id_file=$work/identity
+                id_source_dev=$dev
                 return 0
             fi
         done
@@ -159,6 +176,7 @@ find_identity() {
                 cp "$work/media/$name" "$work/identity"
                 umount "$work/media" 2>/dev/null || true
                 id_file=$work/identity
+                id_source_dev=$dev
                 return 0
             fi
         done
@@ -211,11 +229,35 @@ luks_recovery_key=$(get luks_recovery_key)
 admin_password=$(get admin_password)
 user_initial_password=$(get user_initial_password)
 
+# Whether the key gets wiped is decided here, before the disk is touched, so
+# --check can state it. A stick left armed after provisioning is an
+# administrator key in a drawer; wiping is the default for that reason (D39).
+wipe_plan=""
+if ((keep_key)); then
+    wipe_plan="no — --keep-key was given"
+elif [[ -z $id_source_dev ]]; then
+    wipe_plan="no — the key did not come from removable media"
+elif [[ ! -b $id_source_dev ]]; then
+    wipe_plan="no — $id_source_dev is not a block device"
+elif [[ $id_source_dev == "$disk"* ]]; then
+    # Cannot happen through find_identity, which skips the install target,
+    # but --identity could name a file on it. Wiping part of the disk being
+    # installed to would be its own disaster.
+    wipe_plan="no — $id_source_dev is part of the disk being installed to"
+elif [[ $(lsblk -rno TYPE "$id_source_dev" 2>/dev/null | head -n1) != part ]]; then
+    wipe_plan="no — $id_source_dev is not a partition"
+else
+    wipe_plan="yes — $id_source_dev, after the install succeeds"
+fi
+
 if ((check)); then
     say "Check passed"
     cat <<MSG
 $host would be installed from $rev onto $disk, as account '$user'.
 Secrets decrypt, and the disk has not been touched.
+
+Key found:   $id_file
+Wipe key:    $wipe_plan
 
 Run again without --check to install.
 MSG
@@ -296,7 +338,27 @@ installed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 MSG
 chmod 0644 /mnt/var/lib/fleet/provisioned
 
+# Only after nixos-install has returned successfully. A wipe on a failed run
+# would leave the stick useless for the retry, which is the thing that made
+# this manual in the first place (D29, reversed by D39).
+if [[ $wipe_plan == yes* ]]; then
+    say "Wiping the administrator key from $id_source_dev"
+    if fleet-wipe-key --yes "$id_source_dev"; then
+        key_note="The key partition on $id_source_dev has been wiped.
+Re-arm the stick before the next machine:
+    sudo ./result-mkstick/bin/fleet-mkstick <device> --key-only"
+    else
+        key_note="WARNING: the key could NOT be wiped from $id_source_dev.
+The stick still holds an administrator key. Wipe it by hand:
+    sudo fleet-wipe-key $id_source_dev"
+    fi
+else
+    key_note="Key NOT wiped ($wipe_plan).
+This stick still holds an administrator key; treat it accordingly."
+fi
+
 say "Done — $host installed from $rev"
+printf '\n%s\n' "$key_note"
 cat <<MSG
 
 Hand over to the developer:

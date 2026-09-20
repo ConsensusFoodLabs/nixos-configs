@@ -1,7 +1,7 @@
 # Tests
 
-Three scripts, each written because it caught a real bug during the first
-provisioning run. They are run by hand — there is no CI (D8) — and each one
+Scripts written because each one caught a real bug, or guards a step that runs
+with nobody watching. They are run by hand — there is no CI (D8) — and each one
 takes about a minute.
 
 They touch no hardware: everything happens inside loop devices backed by files
@@ -15,12 +15,15 @@ Build what they exercise first, so that nothing has to run `nix` as root:
     nix build .#fleet-mkstick -o result-mkstick
     nix build .#fleet-wipe-key -o result-wk
     nix build nixpkgs#mtools -o result-mtools
+    nix build nixpkgs#dosfstools -o result-dosfstools
 
 Then:
 
     sudo ./tests/luks-keyslots.sh
     sudo ./tests/provisioning-stick.sh
     sudo ./tests/whole-disk-claim.sh
+    sudo ./tests/recovery-rotation.sh
+    sudo ./tests/key-wipe.sh
 
 Every check prints `PASS` or `FAIL`; the exit status is non-zero if anything
 failed.
@@ -73,3 +76,15 @@ and checks `mtools` reads the key anyway.
 
 This one cannot be caught by building a stick and reading it back; it only
 appears when running *from* the stick.
+
+### `key-wipe.sh`
+
+`fleet-install` wipes the administrator key after a successful install (D39),
+so `fleet-wipe-key` now runs with `--yes` and nobody at the keyboard. The typed
+confirmation used to be the last thing between a mistake and a destroyed
+partition; these checks cover what is left.
+
+The one that matters is the second: a FAT partition that is neither labelled
+`FLEETKEY` nor holds a key file must be refused **even with `--yes`**, and the
+files on it must still be there afterwards. `--yes` is allowed to skip the
+question, not to widen what the tool will destroy.

@@ -14,7 +14,8 @@
     Consensus Food Labs fleet installer.
 
       fleet-install --check --host <hostname>    verify without touching the disk
-      fleet-install --host <hostname>            install
+      fleet-install --host <hostname>            install, then wipe the key
+      fleet-install --host <h> --keep-key        install, keep the key armed
       fleet-wipe-key /dev/sdX                    destroy the key partition
 
     Connect Wi-Fi first with `nmtui`, and plug in the administrator key.

@@ -708,7 +708,7 @@ directory — this check is. It requires both a `sops:` block and an
 
 ---
 
-## D29 — The administrator key ships on the stick, never in the image; wiping it is manual
+## D29 — The administrator key ships on the stick, never in the image; wiping it is manual *(superseded in part by D39)*
 
 `fleet-mkstick` writes the installer image to a USB stick and then adds a
 separate `FLEETKEY` partition holding the administrator age identity.
@@ -1307,3 +1307,62 @@ terminal binding, and the store path embedded in the fontconfig file. The diff
 also caught a real regression: moving the nm-applet *unit* to the system level
 without its *package* took `nm-connection-editor` off PATH, which the bar's
 network block opens on click.
+
+## D39 — Installing wipes the key; D29's "manual" was for the build-out
+
+**Decided:** `fleet-install` runs `fleet-wipe-key --yes` on the key partition
+after a successful install. `--keep-key` opts out.
+
+**What this reverses.** D29 made wiping manual and separate, with the
+reasoning: "a provisioning run that wiped the key would have to be re-armed
+before the next attempt, which is exactly wrong while the procedure is still
+being proven." That was correct, and it was about a particular moment — the
+procedure took five attempts on real hardware, and an automatic wipe would
+have meant re-burning the stick after each one.
+
+The procedure is proven now. The reasoning has expired, so the decision does
+too. What is left is the steady state: a stick that is armed after use is an
+administrator age key in a drawer, and D25 says that key is the one artifact
+whose loss actually matters.
+
+**Verifying first.** The other half of this — checking the key is present
+before anything is destroyed — was already true and is stronger than it
+sounds. `fleet-install` does not merely check that a file exists: it finds the
+key, decrypts the host's secrets with it, and requires all four fields, all
+before the disk confirmation prompt. A missing or wrong key fails while the
+machine is still intact. `--check` now also prints which key was found and
+whether it will be wiped, so the operator knows before starting rather than
+after.
+
+**Where the wipe will not happen**, decided before the disk is touched so
+`--check` can report it:
+
+- `--keep-key` was given — the batch case, provisioning several machines from
+  one stick.
+- The key did not come from removable media: `--identity`, `SOPS_AGE_KEY_FILE`
+  or a path on the live filesystem. There is nothing to wipe, and guessing
+  would be worse than not.
+- The device is part of the disk being installed to. `find_identity` already
+  skips the install target, so this is unreachable through discovery — but
+  `--identity` could name a file there, and wiping a piece of the disk mid-
+  install is its own disaster.
+- The device is not a partition.
+
+**Only after `nixos-install` returns successfully.** A wipe on a failed run
+leaves the stick useless for the retry, which is the exact problem D29 was
+written to avoid. If the wipe itself fails the run still succeeds, and the
+final message says loudly that the stick still holds a key and how to wipe it
+by hand.
+
+**On `--yes`.** It skips the typed confirmation and nothing else: every check
+that the target is really key media still applies. That distinction is the
+whole safety argument for calling a destructive tool from a script, so
+`tests/key-wipe.sh` covers it — in particular that a FAT partition holding
+unrelated files is refused with `--yes`, and that the files survive.
+
+**What this does not achieve.** Unchanged from D29 and worth repeating,
+because automating it makes it easy to believe otherwise: on flash media,
+`blkdiscard` is a request, not a guarantee. Wear levelling can keep copies in
+blocks no command addresses. A stick that has held a key should be treated as
+having held it. The durable controls remain a dedicated stick and the ability
+to rotate the key.

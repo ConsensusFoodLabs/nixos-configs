@@ -6,6 +6,7 @@ pkgs:
 pkgs.writeShellApplication {
   name = "fleet-install";
   runtimeInputs = with pkgs; [
+    (import ./wipe-key.nix pkgs)
     coreutils
     cryptsetup
     findutils
