@@ -165,6 +165,22 @@ in
     Install.WantedBy = [ "graphical-session.target" ];
   };
 
+  # Compositor. A service rather than an i3 `exec_always`, which re-runs on
+  # every reload and restart and leaves the second instance failing with
+  # "Another composite manager is already running". systemd restarts it if it
+  # dies and never starts a second copy.
+  systemd.user.services.picom = {
+    Unit = {
+      Description = "picom compositor";
+      PartOf = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.picom}/bin/picom --config %h/.config/picom/picom.conf";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
   systemd.user.services.nm-applet = {
     Unit = {
       Description = "NetworkManager applet";

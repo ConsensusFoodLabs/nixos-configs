@@ -20,8 +20,9 @@ exec --no-startup-id dex --autostart --environment i3
 # Network applet and notification daemon. Both are user services on this
 # machine, started by graphical-session.target, so they are not exec'd here.
 
-# Compositor, to stop tearing on Intel graphics.
-exec_always --no-startup-id picom --config ~/.config/picom/picom.conf -b
+# The compositor is a user service, not an exec here. i3 re-runs exec_always
+# on every reload and restart, and the second picom exits with "Another
+# composite manager is already running".
 
 # Volume. wpctl, not pactl or amixer: the machine runs PipeWire with
 # WirePlumber, and wpctl is the one that is always present.
