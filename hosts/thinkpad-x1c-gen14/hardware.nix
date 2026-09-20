@@ -27,8 +27,21 @@
   services.fwupd.enable = true;
   services.thermald.enable = true;
 
-  # Stock nixos-26.05 kernel (6.18.x) brings up the BE211 via iwlwifi with no
-  # special handling — confirmed on the target hardware. No kernel pin (D9).
+  # Kernel: newer than the 26.05 default, for audio. See D34.
+  #
+  # Wi-Fi works on the stock 6.18.x via iwlwifi with no special handling,
+  # confirmed on the hardware. Audio does not, and cannot: this machine's
+  # SoundWire codecs are a CS42L45 jack/mic codec (part 0x4245) and two
+  # CS35L63 speaker amps (part 0x3563), and 6.18.52 has no CS42L45 support at
+  # all — sound/soc/sdw_utils/ has helpers for the CS42L42 and CS42L43 and
+  # nothing for the 45. SOF therefore finds no machine driver, falls back to
+  # skl_hda_dsp_generic with the HDMI-only topology, and the machine comes up
+  # with no speakers and no microphone.
+  #
+  # 7.2.x adds soc_sdw_cs42l45.c, which is the generic SDCA path for this
+  # codec. This is a hardware-support pin, not a preference, and it is scoped
+  # to this model rather than the fleet.
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
 }

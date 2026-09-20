@@ -921,3 +921,50 @@ behind deliberately:
   so its "lock" entry did nothing whatsoever. This is the failure mode the
   system-level declaration exists to prevent: a lock that looks configured and
   is not.
+
+## D34 — A kernel pin on the X1 Carbon Gen 14, for audio
+
+**Decided:** `boot.kernelPackages = pkgs.linuxPackages_latest` in
+`hosts/thinkpad-x1c-gen14/hardware.nix`, overriding the nixos-26.05 default of
+6.18.52. Scoped to this model, not the fleet.
+
+This is an exception to D9, which said not to pin kernels. D9 stands as a
+default: pin when the hardware does not work otherwise, not when a newer
+kernel would be nice to have.
+
+**Why:** the machine has no speakers and no microphone on 6.18.52, and cannot
+have them. Its SoundWire codecs are a Cirrus CS42L45 jack/mic codec (part
+`0x4245`) on link 3 and two CS35L63 speaker amps (part `0x3563`) on link 2.
+6.18.52 contains no CS42L45 support of any kind — `sound/soc/sdw_utils/` has
+helpers for the CS42L42 and CS42L43 and nothing for the 45. SOF finds no
+machine driver for the ACPI-reported configuration, falls back to
+`skl_hda_dsp_generic`, and loads `sof-hda-generic-idisp.tplg` — an
+HDMI/DisplayPort-only topology. The only PCMs created are HDMI, which is
+exactly what the machine shows: a Dummy Output and no sources.
+
+7.2.x adds `soc_sdw_cs42l45.c`, the generic SDCA path for this codec.
+
+**What this decision does not claim.** It is not verified to fix the problem.
+Two things are established by reading the sources, and one is not:
+
+- **Established:** 6.18.52 cannot work — the codec support does not exist.
+- **Established:** the SoundWire address quirk table
+  (`soc-acpi-intel-ptl-match.c`) has no entry for this board in 6.18.52,
+  7.2.6, **or** 7.3-rc3. The nearest entries are CS42L43 (`0x4243`) plus
+  CS35L56 (`0x3556`) — different silicon. `sof-firmware` 2025.12.2 likewise
+  ships no `cs42l45`/`cs35l63` topology. So the quirk route is not available
+  on any released kernel.
+- **Not established:** whether the generic SDCA path in 7.2.x binds this
+  machine without a quirk entry. Upstream reports describe the microphone
+  working on 7.1.8 and regressing on 7.2.x, so speakers may come up while the
+  microphone does not.
+
+**Consequences:** this model now tracks a kernel that moves faster than the
+release channel, which is a real cost — 6.18.x is the version Wi-Fi was
+confirmed on. The rollback is the previous generation in the boot menu, which
+is why D18 keeps it. If the pin turns out not to help, remove it rather than
+leaving it in place on the theory that newer is better.
+
+Revisit when `soc-acpi-intel-ptl-match.c` gains a `0x4245`/`0x3563` entry and
+`sof-firmware` ships the matching topology; at that point this can go back to
+the channel default.
