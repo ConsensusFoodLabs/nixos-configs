@@ -173,7 +173,7 @@ bindsym $mod+g mode "go"
 
 bar {
         status_command i3blocks
-        font pango:DejaVu Sans Mono 8
+        font pango:JetBrainsMono Nerd Font 10
         colors {
                 background #1d2021
                 statusline #ebdbb2

@@ -109,7 +109,9 @@
         noto-fonts
         noto-fonts-color-emoji
         fira-code
-        nerd-fonts.droid-sans-mono
+        # Named by oleg's rofi themes and i3 bar. A Nerd Font, so the glyphs
+        # the upstream themes use render instead of showing as boxes.
+        nerd-fonts.jetbrains-mono
       ];
     })
 

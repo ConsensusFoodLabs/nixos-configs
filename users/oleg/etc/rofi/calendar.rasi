@@ -1,0 +1,82 @@
+/**
+ * Calendar popup for the i3blocks datetime block: anchored to the bar in the
+ * bottom-right, sized to a month of `cal` output.
+ *
+ * Its own file rather than a pile of -theme-str flags, because it has to
+ * undo the launcher theme's full-height side panel.
+ */
+
+@import "~/.config/rofi/colors.rasi"
+
+configuration {
+    show-icons: false;
+}
+
+window {
+    transparency:     "real";
+    location:         southeast;
+    anchor:           southeast;
+    fullscreen:       false;
+    width:            340px;
+    x-offset:         -8px;
+    y-offset:         -36px;
+
+    enabled:          true;
+    padding:          0px;
+    border:           1px solid;
+    border-radius:    8px;
+    border-color:     @selected;
+    background-color: @background;
+}
+
+mainbox {
+    enabled:          true;
+    spacing:          8px;
+    padding:          12px;
+    background-color: transparent;
+    children:         [ "inputbar", "listview" ];
+}
+
+inputbar {
+    enabled:          true;
+    padding:          0px 4px;
+    background-color: transparent;
+    text-color:       @selected;
+    children:         [ "prompt" ];
+}
+
+prompt {
+    background-color: transparent;
+    text-color:       inherit;
+}
+
+listview {
+    enabled:          true;
+    columns:          1;
+    lines:            7;
+    scrollbar:        false;
+    fixed-height:     true;
+    spacing:          0px;
+    padding:          0px;
+    background-color: transparent;
+    text-color:       @foreground;
+}
+
+element {
+    padding:          1px 4px;
+    background-color: transparent;
+    text-color:       @foreground;
+    cursor:           "default";
+}
+
+element selected.normal {
+    background-color: transparent;
+    text-color:       @foreground;
+}
+
+element-text {
+    background-color: transparent;
+    text-color:       inherit;
+    highlight:        inherit;
+    vertical-align:   0.5;
+}

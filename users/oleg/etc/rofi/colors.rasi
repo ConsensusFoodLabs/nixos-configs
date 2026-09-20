@@ -1,0 +1,19 @@
+/**
+ * onedark, from adi1090x/rofi (MIT), colors/onedark.rasi.
+ *
+ * Imported by launcher.rasi, powermenu.rasi and calendar.rasi by absolute
+ * path: each of these files is a separate symlink into the Nix store, so a
+ * relative @import would resolve inside the store directory of whichever file
+ * did the importing and find nothing.
+ */
+
+* {
+    background:     #1E2127FF;
+    background-alt: #282B31FF;
+    foreground:     #FFFFFFFF;
+    selected:       #61AFEFFF;
+    active:         #98C379FF;
+    urgent:         #E06C75FF;
+
+    font: "JetBrainsMono Nerd Font 10";
+}

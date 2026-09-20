@@ -906,7 +906,16 @@ behind deliberately:
 - **A vendored theme tree.** The rofi configuration referenced some 200 files
   of third-party themes, scripts and wallpapers. That is a large amount of
   unreviewed third-party content to carry in a company repository for a
-  launcher; the theme is inlined in one `config.rasi` instead.
+  launcher. The styling that was actually in use — adi1090x/rofi (MIT),
+  `launchers/type-1/style-4` and `powermenu/type-1/style-1` with the onedark
+  palette — is inlined across four small files under `users/oleg/etc/rofi`
+  instead, with attribution. The other fourteen colour schemes, six launcher
+  types and sixteen wallpapers are not carried.
+
+  Those files import `colors.rasi` by absolute path rather than relatively.
+  Each is a separate symlink into the Nix store, so a relative `@import`
+  resolves inside the store directory of whichever file did the importing and
+  finds nothing there.
 - **Arch-isms that failed silently.** The reference power menu probed
   `/usr/bin/betterlockscreen` and `/usr/bin/i3lock` — neither exists on NixOS,
   so its "lock" entry did nothing whatsoever. This is the failure mode the

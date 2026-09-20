@@ -9,9 +9,8 @@ case "${BLOCK_BUTTON:-}" in
     TERM=xterm cal --color=always "$month" "$year" |
       sed -e 's/\x1b\[[7;]*m/<b><u>/g' -e 's/\x1b\[[27;]*m/<\/u><\/b>/g' |
       tail -n +2 |
-      rofi -dmenu -markup-rows -no-fullscreen -font "Monospace 12" \
-        -hide-scrollbar -no-custom -lines 7 -width -24 \
-        -theme-str '#window { anchor: southeast; location: northwest; }' \
+      rofi -dmenu -markup-rows -no-fullscreen -no-custom \
+        -theme "$HOME/.config/rofi/calendar.rasi" \
         -p "$(date '+%A, %d %B')" >/dev/null
     ;;
 esac

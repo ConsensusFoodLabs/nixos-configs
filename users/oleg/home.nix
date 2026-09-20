@@ -29,14 +29,17 @@ let
       reboot=" reboot"
       shutdown=" shut down"
 
+      theme=$HOME/.config/rofi/powermenu.rasi
+
       menu() {
         rofi -dmenu -p "$(uname -n)" -mesg "up $(uptime -p | sed 's/^up //')" \
-          -theme-str 'listview { lines: 5; }'
+          -theme "$theme"
       }
 
       confirm() {
         printf 'no\nyes\n' |
-          rofi -dmenu -p confirm -mesg "$1" -theme-str 'listview { lines: 2; }'
+          rofi -dmenu -p confirm -mesg "$1" -theme "$theme" \
+            -theme-str 'listview { lines: 2; }'
       }
 
       chosen=$(printf '%s\n%s\n%s\n%s\n%s\n' \
@@ -134,6 +137,10 @@ in
       recursive = true;
     };
     ".config/rofi/config.rasi".source = ./etc/rofi/config.rasi;
+    ".config/rofi/colors.rasi".source = ./etc/rofi/colors.rasi;
+    ".config/rofi/launcher.rasi".source = ./etc/rofi/launcher.rasi;
+    ".config/rofi/powermenu.rasi".source = ./etc/rofi/powermenu.rasi;
+    ".config/rofi/calendar.rasi".source = ./etc/rofi/calendar.rasi;
     ".config/picom/picom.conf".source = ./etc/picom/picom.conf;
     ".config/ghostty/config".text = ''
       theme = GruvboxDark
