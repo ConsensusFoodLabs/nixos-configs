@@ -944,8 +944,18 @@ exactly what the machine shows: a Dummy Output and no sources.
 
 7.2.x adds `soc_sdw_cs42l45.c`, the generic SDCA path for this codec.
 
-**What this decision does not claim.** It is not verified to fix the problem.
-Two things are established by reading the sources, and one is not:
+**Confirmed working, 2026-09-20.** The machine was updated to 7.2.6 and
+rebooted, and audio came up. The open question below — whether the generic
+SDCA path binds without a quirk table entry — is answered: it does.
+
+The rest of this entry is kept as written, because it is the reasoning that
+picked the kernel and it is what the next person needs if this regresses. In
+particular, upstream reports described the microphone working on 7.1.8 and
+regressing on 7.2.x. That did not reproduce here, but it is the specific thing
+to check first if capture goes silent after a kernel bump.
+
+**What this decision claimed before it was tested.** Two things were
+established by reading the sources, and one was not:
 
 - **Established:** 6.18.52 cannot work — the codec support does not exist.
 - **Established:** the SoundWire address quirk table
@@ -954,16 +964,15 @@ Two things are established by reading the sources, and one is not:
   CS35L56 (`0x3556`) — different silicon. `sof-firmware` 2025.12.2 likewise
   ships no `cs42l45`/`cs35l63` topology. So the quirk route is not available
   on any released kernel.
-- **Not established:** whether the generic SDCA path in 7.2.x binds this
-  machine without a quirk entry. Upstream reports describe the microphone
-  working on 7.1.8 and regressing on 7.2.x, so speakers may come up while the
-  microphone does not.
+- **Not established at the time, since confirmed:** whether the generic SDCA
+  path in 7.2.x binds this machine without a quirk entry. It does.
 
 **Consequences:** this model now tracks a kernel that moves faster than the
-release channel, which is a real cost — 6.18.x is the version Wi-Fi was
-confirmed on. The rollback is the previous generation in the boot menu, which
-is why D18 keeps it. If the pin turns out not to help, remove it rather than
-leaving it in place on the theory that newer is better.
+release channel, which is a real cost. 6.18.x is the version Wi-Fi was
+confirmed on; Wi-Fi is working on 7.2.6 too, but it is no longer the tested
+combination, and a kernel that moves on its own schedule is a standing risk to
+a machine whose only network is wireless (D10). The rollback is the previous
+generation in the boot menu, which is why D18 keeps it.
 
 Revisit when `soc-acpi-intel-ptl-match.c` gains a `0x4245`/`0x3563` entry and
 `sof-firmware` ships the matching topology; at that point this can go back to
