@@ -19,6 +19,7 @@
 /.githooks/             @ConsensusFoodLabs/fleet-admins
 /.github/               @ConsensusFoodLabs/fleet-admins
 /scripts/               @ConsensusFoodLabs/fleet-admins
+/tests/                 @ConsensusFoodLabs/fleet-admins
 
 # Who can decrypt every machine's key material, and the key material itself.
 # Changing .sops.yaml changes who holds the fleet's recovery keys, which makes
