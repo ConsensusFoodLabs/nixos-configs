@@ -48,6 +48,22 @@ in
     openssh.authorizedKeys.keys = adminKeys;
   };
 
+  # sudo without a password, for this account only.
+  #
+  # The point of the admin account is reaching a machine remotely, and a
+  # password prompt is exactly what a non-interactive `ssh host sudo ...`
+  # cannot answer. The owner's account is unaffected: wheelNeedsPassword stays
+  # true in profiles/base.nix, so `oleg` is still prompted.
+  #
+  # The trade is real and worth stating: the admin SSH key alone now grants
+  # root on every machine in the fleet. Before this, it granted a shell and
+  # root needed admin_password as well. That second factor is gone, which puts
+  # the whole weight on the key file — see D32.
+  security.sudo.extraRules = [{
+    users = [ "admin" ];
+    commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
+  }];
+
   # These laptops travel, so this is a listening service on untrusted networks.
   # Keys only, no root, no keyboard-interactive — a password prompt reachable
   # from a cafe network is exactly what must not exist here (D32).

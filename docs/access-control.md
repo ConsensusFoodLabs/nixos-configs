@@ -56,9 +56,14 @@ keys of every person in the inventory with `admin = true` and `active = true`
 therefore the same fact, expressed once — there is no second list to drift out
 of step with the first.
 
+`sudo` as `admin` requires no password, so an administrator SSH key **is** root
+on every machine in the fleet — one file, no second factor. Treat those keys
+accordingly: they warrant a passphrase, and losing one is a fleet-wide incident
+rather than a machine-level one (D32).
+
 Its password lives in each machine's `fleet/secrets/<host>.yaml`, so it differs
 per machine. Unlike the owner's, it is not an initial credential: it stays as
-issued.
+issued. It is for console login only.
 
 The account is **not** gated on the owner being active. A machine whose owner
 has left is precisely a machine an administrator still needs to reach.

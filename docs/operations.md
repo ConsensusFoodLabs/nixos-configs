@@ -86,8 +86,17 @@ keys of every active administrator (D32):
     ssh -i ~/.ssh/fleet-admin-<name> admin@<machine>
 
 Key-only — password and keyboard-interactive authentication are off, and root
-login is refused. The `admin` password, in `fleet/secrets/<host>.yaml`, is for
-`sudo` and console login.
+login is refused. `sudo` as `admin` needs no password, so remote fixes work
+non-interactively:
+
+    ssh -i ~/.ssh/fleet-admin-<name> admin@<machine> sudo fleet-status
+
+The `admin` password in `fleet/secrets/<host>.yaml` is therefore only for
+console login, when a machine has to be reached at the keyboard. It is not a
+second factor for root: the SSH key alone is root on every machine, which is
+why those keys should carry a passphrase (D32).
+
+Your own account is unchanged — `oleg` is still prompted for `sudo`.
 
 This exists so a machine can be reached when its owner cannot help: someone on
 leave, a laptop that boots but has a broken desktop, a departure. It is not a

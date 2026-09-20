@@ -792,6 +792,24 @@ itself, port 22 reachable from the local network wherever the machine is, and
 any future vulnerability in sshd. The honest description is that the exposure
 is a real increase, bounded by there being nothing to guess.
 
+**`sudo` without a password, for `admin` only.** The point of the account is
+reaching a machine remotely, and a password prompt is what a non-interactive
+`ssh host sudo ...` cannot answer. The owner's account is unaffected:
+`wheelNeedsPassword` stays true, so the developer is still prompted.
+
+This moves the whole weight onto the SSH key. Before it, a stolen key bought a
+shell and root still needed `admin_password`; now the key alone is root on
+every machine in the fleet. Two things follow, and neither is optional if this
+is to stay defensible:
+
+  - **Administrator SSH keys should carry a passphrase.** They are now
+    root-equivalent, fleet-wide, in a single file. `ssh-keygen -p -f <key>`
+    adds one to an existing key without changing the public half, so nothing
+    in the inventory changes.
+  - `admin_password` is now only for console login and is no longer a second
+    factor for root. It is still worth having — a machine with a broken
+    network is reached at the keyboard — but do not count it as one.
+
 **Revisit when:** there is a VPN or an overlay network (Tailscale, WireGuard).
 Binding sshd to that interface instead of every interface removes most of this,
 and is the obvious next step once such a thing exists.
