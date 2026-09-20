@@ -133,6 +133,9 @@
         # (D20) — the two have to move together.
         firefox
         google-chrome
+        # Where the team actually talks. Unfree, so it also needs its
+        # allowlist entry in profiles/base.nix (D20).
+        slack
         ripgrep
         fd
         jq

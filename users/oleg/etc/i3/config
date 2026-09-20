@@ -186,9 +186,11 @@ bar {
 for_window [class="Alacritty"] border pixel 1
 for_window [class="com.mitchellh.ghostty"] border pixel 1
 for_window [class="Slack"] border pixel 1
+for_window [class="TelegramDesktop"] border pixel 1
 for_window [class="Google-chrome"] border none
 
 # Workspace assignments
 assign [class="Google-chrome"] $ws_web
 assign [class="Code"] $ws_code
 assign [class="Slack"] $ws_social
+assign [class="TelegramDesktop"] $ws_social

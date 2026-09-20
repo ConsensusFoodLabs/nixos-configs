@@ -95,6 +95,7 @@ in
     # Desktop. Chrome is not listed here: it is part of the shared baseline
     # in profiles/engineering.nix, so every machine gets it (D20).
     ghostty
+    telegram-desktop
     # rofi-emoji is a plugin: rofi only finds it inside its own lib/rofi, so
     # it has to be built into the wrapper. Installing it alongside rofi would
     # leave `rofi -modi emoji` reporting an unknown mode.

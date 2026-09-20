@@ -56,6 +56,7 @@
     builtins.elem (lib.getName pkg) [
       "claude-code"
       "google-chrome"
+      "slack"
     ];
 
   time.timeZone = lib.mkDefault "UTC";
