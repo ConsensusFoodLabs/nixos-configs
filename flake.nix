@@ -39,6 +39,14 @@
             ./profiles/base.nix
             ./hosts/${device.model}
             ./profiles/${device.profile}.nix
+          ]
+          # One optional file per machine, for the things that belong to a
+          # single laptop rather than to its model, its profile or its owner
+          # (D40). Most machines have none, and then this adds nothing.
+          ++ lib.optional
+            (builtins.pathExists (./machines + "/${hostname}.nix"))
+            (./machines + "/${hostname}.nix")
+          ++ [
 
             {
               networking.hostName = hostname;
