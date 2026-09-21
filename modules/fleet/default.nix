@@ -63,6 +63,15 @@ in
         silently land on a session with no screen locking (D14).
       '';
     };
+
+    timezone = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      description = ''
+        System timezone. Set per device in fleet/inventory.nix; defaults to
+        UK time when a device doesn't set one. Read by profiles/base.nix.
+      '';
+    };
   };
 
   config = lib.mkMerge [
@@ -70,6 +79,7 @@ in
       fleet.user = owner;
       fleet.admin = person.admin;
       fleet.desktop = device.desktop or "gnome";
+      fleet.timezone = device.timezone or "Europe/London";
       fleet.repoUrl = "https://github.com/ConsensusFoodLabs/nixos-configs";
       fleet.flakeRef = "git+" + config.fleet.repoUrl;
 

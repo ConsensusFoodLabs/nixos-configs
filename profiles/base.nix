@@ -87,7 +87,7 @@
       "vscode"
     ];
 
-  time.timeZone = lib.mkDefault "UTC";
+  time.timeZone = lib.mkDefault config.fleet.timezone;
   i18n.defaultLocale = lib.mkDefault "en_US.UTF-8";
 
   environment.systemPackages = with pkgs; [

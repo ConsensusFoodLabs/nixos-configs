@@ -41,6 +41,7 @@
       assignedTo = "oleg";
       profile = "engineering";
       desktop = "i3";
+      timezone = "Europe/London";
     };
   };
 }
