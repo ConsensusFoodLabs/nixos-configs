@@ -60,6 +60,13 @@ in
   # and per-application workspace assignments.
   home.file.".config/i3/config".source = ./etc/i3/config;
 
+  # US as the base layout, Russian as a second one, switched by pressing both
+  # Alt keys together (grp:alts_toggle).
+  home.keyboard = {
+    layout = "us,ru";
+    options = [ "grp:alts_toggle" ];
+  };
+
   home.packages = with pkgs; [
     # jujutsu and claude-code are not listed here: both are in the shared
     # baseline in profiles/engineering.nix, so every machine gets them.
