@@ -1446,3 +1446,103 @@ like from here.
 **Not done:** no polkit rule letting the owner start and stop the unit by
 hand. Nothing needs it while the automatic behaviour is right; when something
 does, that is a rule naming one unit, not a new mechanism.
+
+---
+
+## D41 — A profile is a list of modules, not a place to put configuration
+
+**Decided:** shared system configuration lives in `modules/`, one file per
+thing it configures. `profiles/engineering.nix` is now an `imports` list and
+nothing else, and `profiles/base.nix` is on the same path.
+
+Where the 499 lines of `profiles/engineering.nix` went:
+
+```
+modules/desktop/default.nix        X, the display manager, the session dispatch
+modules/desktop/gnome.nix          the GNOME branch
+modules/desktop/i3/default.nix     the window manager, its packages, its knobs
+modules/desktop/i3/locking.nix     xss-lock + the PAM stack + xautolock
+modules/desktop/i3/displays.nix    autorandr, and the touchscreen that follows it
+modules/desktop/i3/session.nix     dunst, nm-applet, polkit, udiskie, poweralertd
+modules/desktop/services.nix       printing, avahi, portals, gvfs, keyring, bluetooth
+modules/desktop/audio.nix          pipewire, rtkit
+modules/hardware/fingerprint.nix   fprintd and the PAM policy it drags in
+modules/dev-toolchain.nix          nix-ld and the shared package baseline
+```
+
+**Why.** A 499-line file is not hard to read because it is long; it is hard
+to read because nothing in it says which lines belong together. The
+fingerprint reader and its four PAM exceptions are one decision and were 60
+lines apart from the assertion that enforces them. Screen locking is three
+declarations that are only correct together, sitting between the window
+manager and autorandr. Splitting by what a group of lines *does* puts those
+back in one place each, and makes the ones that must not be separated
+obvious by being in a file together.
+
+The second reason is the one that decided the destination. `profiles/` is
+for a *class of machine*; `modules/` is for things any class might want. Of
+the ten files above, the number that are genuinely specific to engineering
+laptops is zero — a design or an ops profile would start by wanting the same
+desktop, the same audio, the same locking. Leaving them in the profile would
+mean the second profile begins by copying the first, which is how two
+configurations start drifting on the day they are created — the same
+argument D38 made for home-manager layers, applied one level up.
+
+So the rule is: **shared before it is shared.** A thing goes in `modules/`
+when more than one caller would plausibly want it, not when the second caller
+actually appears. The cost of being early is a file; the cost of being late
+is a copy that has already diverged.
+
+**What a profile is now.** The choice of which modules apply, and anything
+truly specific to that class. `profiles/engineering.nix` currently has no
+third part at all, which is the honest outcome rather than an oversight.
+
+**Also extracted, by the same rule:**
+
+- `modules/wireguard-home.nix` — the hand-delivered tunnel from D40, which
+  arrived a week earlier as 156 lines in `machines/x1c-oleg.nix`. Nothing in
+  it was about oleg: the machine file is now four values. The next person who
+  wants their home network on their laptop writes those four.
+- `fleet.homeTunnel.autoconnect` — the off switch added upstream as a
+  `let` binding in the machine file is an option on the module now, so the
+  next machine gets it without copying the trick.
+- `modules/fleet/user-secrets.nix` — `fleet.userSecretsDir`, one declared
+  0700 directory for material delivered by hand. The tunnel needed a path;
+  rclone already had the same problem and solved it by having each person
+  remember where to put the file.
+- Shell applications with a page of script in them are now their own files
+  (`fleet-lock.nix`, `map-touch-to-panel.nix`, `rofi-powermenu.nix`,
+  `screenshot.nix`), reached by `callPackage`. A module reads better when it
+  names the pieces the session has than when it spells each one out, and the
+  scripts are now shellcheckable on their own terms.
+
+**Verified as a no-op, and the one difference that remains.** The refactor
+was required to change nothing a machine does, and that was checked rather
+than asserted: the whole `x1c-oleg` system closure was evaluated before and
+after with `system.configurationRevision` pinned, so a dirty tree could not
+move the answer, and the two derivations compared with `nix-diff`.
+
+The result: exactly one environment mismatch in the entire closure, and no
+source-file, builder or build-argument differences anywhere. That one
+mismatch is the *order* of the paths handed to `system-path`'s `buildEnv` —
+the same set of packages, merged in a different sequence, because the module
+system orders definitions by how deeply a module is imported and the fleet
+tools now sit at a different depth than the desktop packages. Both
+environments were built and compared entry by entry: 10,353 paths and symlink
+targets, identical.
+
+(Re-checked after rebasing onto four upstream commits that had landed
+meanwhile — a package toggle, three new tools, and an xssproxy unit, all of
+which had to be ported into the new files by hand. Same result against the
+new `origin/main`: one environment mismatch, nothing else, and 12,103
+identical entries.)
+
+So the machine gets a new generation whose `/run/current-system/sw` is
+byte-for-byte what it had. That is a real difference and it is written down
+here rather than glossed: chasing it would have meant contorting the module
+layout around an ordering rule that is an artifact of the module system, to
+protect a store hash rather than a behaviour.
+
+**Consequence for the older entries.** D33, D35, D37 and D38 name
+`profiles/engineering.nix` as the home of things that are now in `modules/`.
+They were true when written and are left alone; this entry is the map.

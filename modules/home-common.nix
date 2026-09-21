@@ -19,7 +19,7 @@
     };
   };
 
-  # jujutsu ships fleet-wide (profiles/engineering.nix), and refuses to
+  # jujutsu ships fleet-wide (modules/dev-toolchain.nix), and refuses to
   # commit without a name and email. Same source as git's, so the two cannot
   # disagree about who you are.
   programs.jujutsu = {

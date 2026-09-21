@@ -34,8 +34,13 @@ devices.
     .admin-key             your age identity (gitignored; normally a symlink)
     hosts/<model>/         hardware: kernel, firmware, disk layout
     machines/<host>.nix    optional, for one laptop only (D40)
-    profiles/              shared system config (security baseline, engineering)
-    modules/               reusable system modules, home-manager baseline
+    profiles/              which modules a class of machine gets (D41)
+    modules/desktop/       the graphical session: i3, GNOME, audio, portals
+    modules/fleet/         accounts, admin access, the fleet-* tools
+    modules/hardware/      hardware that brings policy with it
+    modules/home-common.nix, modules/home-i3/
+                           home-manager layers (D38)
+    modules/               other shared system modules
     users/<name>/          per-developer config (home-manager)
     scripts/               fleet-install, fleet-mksecrets, fleet-mkstick
     docs/                  decisions and operating procedures
