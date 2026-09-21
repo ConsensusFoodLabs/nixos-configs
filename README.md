@@ -33,6 +33,7 @@ devices.
     .sops.yaml             who can decrypt them
     .admin-key             your age identity (gitignored; normally a symlink)
     hosts/<model>/         hardware: kernel, firmware, disk layout
+    machines/<host>.nix    optional, for one laptop only (D40)
     profiles/              shared system config (security baseline, engineering)
     modules/               reusable system modules, home-manager baseline
     users/<name>/          per-developer config (home-manager)

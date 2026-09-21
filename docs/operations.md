@@ -245,6 +245,59 @@ token** to `~/.config/rclone/rclone.conf`, which is a live credential for the
 whole Drive account — it stays on the machine and never reaches this
 repository. There is nothing to provision and nothing to check in.
 
+## Home VPN (x1c-oleg)
+
+`x1c-oleg` carries a WireGuard tunnel to its owner's home network. The
+configuration is **not** in this repository and never will be — it is a
+private network, and this repository is public (D40). Nothing about the
+tunnel works until the file is delivered by hand.
+
+Put it at `~/.secrets/x1c-oleg-h.conf`, owned by you, mode 0600. The
+directory is created for you with the right permissions:
+
+```
+install -m 0600 /path/to/x1c-oleg-h.conf ~/.secrets/x1c-oleg-h.conf
+sudo systemctl start wg-x1c-oleg-h-autoconnect
+```
+
+The file is an ordinary `wg-quick` config:
+
+```ini
+[Interface]
+Address    = 10.100.0.<n>/24
+PrivateKey = <this laptop's private key>
+DNS        = 172.26.249.253
+MTU        = 1380
+
+[Peer]
+PublicKey           = <the gateway's public key>
+Endpoint            = <gateway host>:51820
+AllowedIPs          = 10.100.0.0/24, 172.26.249.0/24
+PersistentKeepalive = 25
+```
+
+`AllowedIPs` is deliberately the two home subnets and not `0.0.0.0/0`: only
+the home network goes through the tunnel, and ordinary browsing does not.
+
+**Up and down is automatic.** The tunnel comes up when the laptop is online
+and away, and goes down on the home network — where its routes would
+otherwise shadow the real LAN. Home is recognised by the `mingahome` SSID, or
+by `172.26.249.254` answering a ping off-tunnel, which also covers the dock
+and a borrowed cable. Both are in `machines/x1c-oleg.nix`; change them there.
+The check runs on every network change:
+
+```
+systemctl status wg-x1c-oleg-h-autoconnect     # what it last decided, and why
+systemctl status wg-quick-x1c-oleg-h           # whether the tunnel is up
+journalctl -u wg-x1c-oleg-h-autoconnect -n 20
+```
+
+If the tunnel never comes up, the usual causes are: the file is not readable
+at that path, or something on the current network answers at
+`172.26.249.254`, so the laptop believes it is home.
+`systemctl start wg-quick-x1c-oleg-h` brings it up by hand and shows the real
+error.
+
 ## Installing software
 
 Install what you need, when you need it. The declared baseline is what every

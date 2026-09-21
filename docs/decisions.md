@@ -1366,3 +1366,83 @@ because automating it makes it easy to believe otherwise: on flash media,
 blocks no command addresses. A stick that has held a key should be treated as
 having held it. The durable controls remain a dedicated stick and the ability
 to rotate the key.
+
+---
+
+## D40 — A per-machine layer, and a VPN this repository knows nothing about
+
+**Decided:** two things, which arrived together because the second needed the
+first.
+
+`flake.nix` imports an optional `machines/<hostname>.nix` into each device,
+after the model and profile layers. Most machines have none. `x1c-oleg` has
+one, holding a WireGuard tunnel to its owner's home network.
+
+That tunnel's configuration is **not in this repository, in any form**. The
+Nix declares `networking.wg-quick.interfaces.x1c-oleg-h.configFile =
+"/home/<owner>/.secrets/x1c-oleg-h.conf"` and nothing else about it. The file
+is delivered by hand.
+
+**Why a fourth layer.** Three existed and none fits one laptop:
+
+- `hosts/<model>/` is hardware. Putting the tunnel there gives oleg's home
+  VPN to every X1 Carbon Gen 14 the company buys — including the next hire's.
+- `profiles/<profile>.nix` is the whole fleet, which is worse.
+- `users/<name>/home.nix` is home-manager. It cannot bring up a network
+  interface, and D14 puts anything security-relevant at the system level
+  anyway.
+
+A machine is a real thing in the inventory already (D3), so a layer keyed by
+hostname costs nothing conceptually. `builtins.pathExists` keeps it free for
+the machines that do not use it. It stays under tight review — it is system
+configuration, and CODEOWNERS treats `machines/` like `hosts/`.
+
+**Why the configuration is hand-delivered.** This repository is public (D7),
+and the tunnel is a private home network: its endpoint hostname, its subnets,
+its peer's public key and the wifi network it is reached from are all facts
+about where someone lives. None of them is a fleet secret and none belongs in
+a company repository, encrypted or not — `fleet/secrets/` is provisioning
+credentials the installer needs (D27), which this is not.
+
+So the split is not "secret parts encrypted, the rest declared". It is: the
+whole `.conf` is out of band, and the Nix here is generic enough to be read
+by anyone. `configFile` takes a plain path string, so nothing is copied into
+the store at build time; the unit copies it into its own `PrivateTmp` at
+start. A machine where the file has not been delivered boots fine — the unit
+is `autostart = false` and the autoconnect script exits when the file is not
+readable.
+
+**Consequence:** the private key sits in the owner's home directory, readable
+by the owner and root, protected by the disk encryption and a 0700 directory
+this module creates. That is the same footing as the rclone OAuth tokens
+already there, and it is weaker than sops would be. It is the price of not
+publishing the rest.
+
+**Auto up and down.** The tunnel must be down at home — its routes for the
+home subnets would otherwise shadow the real LAN — and up everywhere else.
+Recognising "home" takes two facts, and they *are* in this file: the wifi
+SSID `mingahome` and the gateway `172.26.249.254`.
+
+That is not a hole in the paragraphs above, it is where the line falls. A
+network name and an RFC1918 address disclose nothing usable — they name no
+host, reach nothing, and are shared by every home network on the same
+prefix. What stays out of band is what would actually let someone find or
+join the network: the endpoint hostname, the peer's public key, this
+laptop's address and its private key. Carrying the two harmless facts in the
+delivered file as `#` comments was tried first and rejected as machinery
+protecting nothing.
+
+The SSID is checked first because on wifi it is instant. The gateway probe
+is the fallback, and it also covers arriving by dock or cable where there is
+no SSID. It uses `ping -I <interface>`, which is `SO_BINDTODEVICE` and so
+bypasses the routing table — without that, the tunnel's own routes would
+answer the probe and the machine would conclude it was home the moment it
+connected.
+
+A `ip monitor address` unit re-runs the check on every address change, which
+is what joining a network, leaving one, and resuming from suspend all look
+like from here.
+
+**Not done:** no polkit rule letting the owner start and stop the unit by
+hand. Nothing needs it while the automatic behaviour is right; when something
+does, that is a rule naming one unit, not a new mechanism.

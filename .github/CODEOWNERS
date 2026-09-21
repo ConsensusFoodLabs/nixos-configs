@@ -12,6 +12,7 @@
 # grants, which is why this file is not developer-editable (D12).
 /fleet/                 @ConsensusFoodLabs/fleet-admins
 /hosts/                 @ConsensusFoodLabs/fleet-admins
+/machines/              @ConsensusFoodLabs/fleet-admins
 /profiles/              @ConsensusFoodLabs/fleet-admins
 /modules/               @ConsensusFoodLabs/fleet-admins
 /flake.nix              @ConsensusFoodLabs/fleet-admins
