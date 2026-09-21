@@ -153,6 +153,25 @@ in
         locker = "${pkgs.systemd}/bin/loginctl lock-session";
       };
 
+      # xautolock only knows about keyboard/mouse idle time, so a video call
+      # still locks: Chrome asks the desktop to hold off locking via the
+      # freedesktop.org ScreenSaver Inhibit D-Bus call, but nothing on i3
+      # answers that call — GNOME's session manager normally does. xssproxy
+      # is the missing listener: it forwards Inhibit/UnInhibit to the X11
+      # idle counter that xautolock and xss-lock already read, bringing i3
+      # to parity with what GNOME already lets apps do (D14: this is not a
+      # new weakening, both branches already yield to an app-requested
+      # inhibit — i3 just didn't have anything to receive the request).
+      systemd.user.services.xssproxy = {
+        description = "Forward ScreenSaver D-Bus inhibit calls to Xss";
+        wantedBy = [ "graphical-session.target" ];
+        partOf = [ "graphical-session.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.xssproxy}/bin/xssproxy";
+          Restart = "always";
+        };
+      };
+
       # Displays, on hotplug.
       #
       # GNOME's mutter reconfigures outputs by itself; i3 does not do display
