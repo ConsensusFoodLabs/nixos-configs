@@ -504,6 +504,7 @@ in
         btop
         tmux
         gnumake
+        gh        
 
         python3
         texliveFull
