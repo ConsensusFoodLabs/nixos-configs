@@ -34,6 +34,13 @@ let
   homeSsid = "mingahome";
   homeGateway = "172.26.249.254";
 
+  # Off switch for the pair below, kept as a plain param rather than deleted
+  # code so re-enabling is a one-line flip back to `true`. The services stay
+  # defined either way — this only keeps them out of multi-user.target, so a
+  # `systemctl start wg-${iface}-monitor.service` still works if wanted
+  # by hand.
+  autoconnectEnabled = false;
+
   # Bring the tunnel up when away, take it down when home.
   #
   # Down at home is the part that matters: the tunnel's routes for the home
@@ -122,7 +129,7 @@ in
     description = "Bring ${iface} up when away from the home network";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
+    wantedBy = lib.optional autoconnectEnabled "multi-user.target";
     serviceConfig = {
       Type = "oneshot";
       ExecStart = lib.getExe autoconnect;
@@ -135,7 +142,7 @@ in
   systemd.services."wg-${iface}-monitor" = {
     description = "Re-check ${iface} whenever the network changes";
     after = [ "network.target" ];
-    wantedBy = [ "multi-user.target" ];
+    wantedBy = lib.optional autoconnectEnabled "multi-user.target";
     serviceConfig = {
       Type = "simple";
       Restart = "always";
