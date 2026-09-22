@@ -6,6 +6,12 @@ Centralized NixOS configuration for Consensus Food Labs engineering laptops.
 provisioned. Most of what is described in `docs/` is decided but not yet
 implemented — see the status markers in each document.
 
+<img src="docs/images/nix-tshirt.jpg" width="320"
+  alt="A black NIX.ru t-shirt reading, in Russian: I've stopped drinking,
+  quit smoking, stopped eating late at night — I can't tear myself away from
+  a NIX computer, it's so fast and reliable. All because it has the real
+  Windows Vista.">
+
 ## This repository is public
 
 Anyone can read it. **No plaintext secret goes in, in any form, ever** — not in
