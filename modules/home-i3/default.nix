@@ -13,84 +13,17 @@
 # What is NOT here: anything the session needs in order to be *safe* or to
 # work at all regardless of preference. Screen locking, the polkit agent, the
 # notification daemon, automounting and the touchscreen mapping are declared
-# at the system level in profiles/engineering.nix, where a personal file
+# at the system level in modules/desktop, where a personal file
 # cannot remove them.
 { config, lib, pkgs, ... }:
 
 let
-  # Power menu for $mod+Shift+e. The reference config this was ported from
-  # bound it to a script that probed /usr/bin/betterlockscreen and
-  # /usr/bin/i3lock — neither exists on NixOS, so its lock entry did nothing
-  # at all. This one asks logind, as the $mod+Shift+x binding does.
-  rofiPowermenu = pkgs.writeShellApplication {
-    name = "rofi-powermenu";
-    # procps for uptime; coreutils `uname -n` rather than `hostname`, which
-    # coreutils does not install on NixOS.
-    runtimeInputs = with pkgs; [ rofi systemd coreutils procps i3 gnused ];
-    text = ''
-      lock=" lock"
-      suspend=" suspend"
-      logout=" log out"
-      reboot=" reboot"
-      shutdown=" shut down"
-
-      theme=$HOME/.config/rofi/powermenu.rasi
-
-      menu() {
-        rofi -dmenu -p "$(uname -n)" -mesg "up $(uptime -p | sed 's/^up //')" \
-          -theme "$theme"
-      }
-
-      confirm() {
-        printf 'no\nyes\n' |
-          rofi -dmenu -p confirm -mesg "$1" -theme "$theme" \
-            -theme-str 'listview { lines: 2; }'
-      }
-
-      chosen=$(printf '%s\n%s\n%s\n%s\n%s\n' \
-        "$lock" "$suspend" "$logout" "$reboot" "$shutdown" | menu)
-
-      case "$chosen" in
-        "$lock")     loginctl lock-session ;;
-        "$suspend")  systemctl suspend ;;
-        "$logout")   [ "$(confirm "log out?")" = yes ] && i3-msg exit ;;
-        "$reboot")   [ "$(confirm "reboot?")" = yes ] && systemctl reboot ;;
-        "$shutdown") [ "$(confirm "shut down?")" = yes ] && systemctl poweroff ;;
-      esac
-    '';
-  };
-
-  # Screenshots. There was no PrintScreen binding at all after the move off
-  # GNOME, which provided one.
-  #
-  # maim rather than flameshot: no tray icon, no daemon, nothing to keep
-  # running, and it composes with xclip. Every mode copies to the clipboard
-  # and also writes a dated file, so a screenshot is never lost to whatever
-  # lands in the clipboard next.
-  screenshot = pkgs.writeShellApplication {
-    name = "screenshot";
-    runtimeInputs = with pkgs; [ maim xclip xdotool libnotify coreutils ];
-    text = ''
-      dir=''${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots
-      mkdir -p "$dir"
-      file=$dir/$(date +%Y-%m-%d_%H-%M-%S).png
-
-      case "''${1:-screen}" in
-        screen) maim --hidecursor "$file" ;;
-        # --nokeyboard so Escape cancels the selection instead of being
-        # swallowed; maim exits non-zero, and that is not an error.
-        select) maim --nokeyboard --select "$file" || exit 0 ;;
-        window) maim --hidecursor --window "$(xdotool getactivewindow)" "$file" ;;
-        *) echo "usage: screenshot [screen|select|window]" >&2; exit 2 ;;
-      esac
-
-      [ -s "$file" ] || { rm -f "$file"; exit 0; }
-
-      xclip -selection clipboard -t image/png -i "$file"
-      notify-send "Screenshot" "copied to clipboard
-      $file" --icon=camera-photo
-    '';
-  };
+  # Power menu for $mod+Shift+e, and screenshots for PrintScreen. Both are
+  # shell applications with a page of script in them, so they live in their
+  # own files: a module is easier to read when it says which pieces the
+  # session has than when it spells each one out.
+  rofiPowermenu = pkgs.callPackage ./rofi-powermenu.nix { };
+  screenshot = pkgs.callPackage ./screenshot.nix { };
 in
 {
   home.packages = with pkgs; [

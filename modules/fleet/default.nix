@@ -11,7 +11,15 @@ let
   inherit (person) active;
 in
 {
-  imports = [ ./fleet-status.nix ./fleet-credentials.nix ./fleet-update.nix ./fleet-recovery.nix ./admin.nix ];
+  imports = [
+    ./fleet-status.nix
+    ./fleet-credentials.nix
+    ./fleet-update.nix
+    ./fleet-recovery.nix
+    ./admin.nix
+    ./user-secrets.nix
+    ../wireguard-home.nix
+  ];
 
   options.fleet = {
     user = lib.mkOption {
@@ -57,7 +65,7 @@ in
       readOnly = true;
       description = ''
         Which desktop session this machine boots into. Set per device in
-        fleet/inventory.nix, read by profiles/engineering.nix.
+        fleet/inventory.nix, read by modules/desktop.
 
         An enum rather than a free string: a typo must fail the build, not
         silently land on a session with no screen locking (D14).
@@ -108,7 +116,7 @@ in
         isNormalUser = true;
         description = person.fullName;
         # video: brightness control writes /sys/class/backlight, which
-        # acpilight's udev rules make group-writable (profiles/engineering.nix).
+        # acpilight's udev rules make group-writable (modules/desktop/i3).
         extraGroups = [ "networkmanager" "video" ]
           ++ lib.optional person.admin "wheel";
 
