@@ -505,6 +505,9 @@ in
         tmux
         gnumake
 
+        python3
+        texliveFull
+
         # jujutsu is Apache-2.0; claude-code is unfree and has its allowlist
         # entry in profiles/base.nix (D20). Identity for both comes from the
         # inventory via modules/home-common.nix — shipping the binary without
