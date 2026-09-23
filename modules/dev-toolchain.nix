@@ -67,7 +67,6 @@
     gh
 
     python3
-    poetry
     uv
     texliveFull
 
