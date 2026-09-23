@@ -62,6 +62,18 @@
     export PATH="$HOME/go/bin:$PATH"
   '';
 
+  # See the `icu` comment below: its cgo bindings hardcode `-I`/`-l` flags
+  # instead of using pkg-config, so the compiler/linker need to be pointed
+  # at it explicitly.
+  environment.variables = {
+    CGO_CFLAGS = "-I${pkgs.icu.dev}/include";
+    # cgo reads CXXFLAGS separately from CFLAGS for its .cpp files — without
+    # this, C++ translation units in the same package still can't find the
+    # headers CGO_CFLAGS above already points C files at.
+    CGO_CXXFLAGS = "-I${pkgs.icu.dev}/include";
+    CGO_LDFLAGS = "-L${pkgs.icu}/lib";
+  };
+
   environment.systemPackages = with pkgs; [
     # Two browsers on purpose. Firefox is the free default; Chrome is here
     # because web work needs testing against Blink and because several
@@ -106,6 +118,14 @@
     # found in $PATH".
     gcc
     go
+
+    # go-icu-regex (a transitive dep of dolthub's go-mysql-server, used by
+    # some of our tooling) cgo's straight against libicu with hardcoded
+    # `-licuuc` etc. and no pkg-config, so — unlike the sqlite/clipboard
+    # cgo deps gcc above already covers — it needs its headers and libs on
+    # the compiler's/linker's default search paths, set via CGO_CFLAGS/
+    # CGO_LDFLAGS below.
+    icu
 
     # npm ships bundled with nodejs; there is no standalone npm package.
     nodejs
