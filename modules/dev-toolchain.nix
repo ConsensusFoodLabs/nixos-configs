@@ -26,12 +26,14 @@
   # (D35).
   programs.nix-ld.enable = true;
 
+  # uv installs Python tools (`uv tool install`) under ~/.local/bin.
+  environment.localBinInPath = true;
+
   # go installs binaries built with `go install` under $GOPATH/bin, which
   # defaults to ~/go/bin, and nothing else here adds that directory to PATH.
-  # This mirrors NixOS's own environment.homeBinInPath / localBinInPath idiom
-  # (nixos/modules/config/shells-environment.nix) rather than
-  # environment.sessionVariables.PATH, which would replace PATH outright
-  # instead of appending to it.
+  # This mirrors environment.localBinInPath above (append, not replace)
+  # rather than environment.sessionVariables.PATH, which would replace
+  # PATH outright instead of appending to it.
   environment.extraInit = ''
     export PATH="$HOME/go/bin:$PATH"
   '';
