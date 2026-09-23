@@ -67,6 +67,8 @@
     gh
 
     python3
+    poetry
+    uv
     texliveFull
 
     # cgo shells out to a C compiler at build time — nix-ld above only helps
