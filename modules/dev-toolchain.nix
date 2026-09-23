@@ -26,6 +26,16 @@
   # (D35).
   programs.nix-ld.enable = true;
 
+  # go installs binaries built with `go install` under $GOPATH/bin, which
+  # defaults to ~/go/bin, and nothing else here adds that directory to PATH.
+  # This mirrors NixOS's own environment.homeBinInPath / localBinInPath idiom
+  # (nixos/modules/config/shells-environment.nix) rather than
+  # environment.sessionVariables.PATH, which would replace PATH outright
+  # instead of appending to it.
+  environment.extraInit = ''
+    export PATH="$HOME/go/bin:$PATH"
+  '';
+
   environment.systemPackages = with pkgs; [
     # Two browsers on purpose. Firefox is the free default; Chrome is here
     # because web work needs testing against Blink and because several
@@ -58,6 +68,8 @@
 
     python3
     texliveFull
+
+    go
 
     # jujutsu is Apache-2.0; claude-code is unfree and has its allowlist
     # entry in profiles/base.nix (D20). Identity for both comes from the
