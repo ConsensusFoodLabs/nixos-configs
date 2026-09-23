@@ -24,7 +24,31 @@
   # that we do not try to prevent software being installed, so making the
   # normal case work is consistent with it rather than a retreat from it
   # (D35).
-  programs.nix-ld.enable = true;
+  #
+  # The loader alone isn't enough: a prebuilt binary that finds it still
+  # needs the shared libraries it links against, which NixOS doesn't put
+  # anywhere the dynamic linker looks by default. This list is the
+  # wiki.nixos.org/wiki/Python baseline — the libraries compiled Python
+  # extensions (numpy, etc.) most often pull in.
+  programs.nix-ld = {
+    enable = true;
+    libraries = with pkgs; [
+      zlib
+      zstd
+      stdenv.cc.cc
+      curl
+      openssl
+      attr
+      libssh
+      bzip2
+      libxml2
+      acl
+      libsodium
+      util-linux
+      xz
+      systemd
+    ];
+  };
 
   # uv installs Python tools (`uv tool install`) under ~/.local/bin.
   environment.localBinInPath = true;
