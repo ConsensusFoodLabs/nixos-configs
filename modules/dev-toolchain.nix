@@ -69,6 +69,12 @@
     python3
     texliveFull
 
+    # cgo shells out to a C compiler at build time — nix-ld above only helps
+    # *running* prebuilt binaries, not compiling. Without this, `go build`/
+    # `go install` on anything that pulls in a cgo dependency (clipboard
+    # access, sqlite drivers, etc.) fails with "gcc: executable file not
+    # found in $PATH".
+    gcc
     go
 
     # jujutsu is Apache-2.0; claude-code is unfree and has its allowlist
