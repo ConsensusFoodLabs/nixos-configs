@@ -72,6 +72,15 @@
     # headers CGO_CFLAGS above already points C files at.
     CGO_CXXFLAGS = "-I${pkgs.icu.dev}/include";
     CGO_LDFLAGS = "-L${pkgs.icu}/lib";
+
+    # nixpkgs' own python3 has this patched in at build time, but uv's
+    # standalone interpreters (`uv python install`) are unmodified
+    # upstream builds: they look for a CA bundle at /etc/ssl/cert.pem,
+    # which doesn't exist on NixOS, and their capath fallback
+    # (/etc/ssl/certs) needs per-cert hashed symlinks NixOS doesn't
+    # provide — only the single bundle file below. Without this, TLS
+    # verification fails with "unable to get local issuer certificate".
+    SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
   };
 
   environment.systemPackages = with pkgs; [
