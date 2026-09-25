@@ -113,6 +113,7 @@
     gnumake
     gh
     just
+    google-cloud-sdk
 
     # Pinned rather than plain `python3` because this nixpkgs's `python3`
     # still resolves to 3.13; naming the version gets us 3.14 explicitly.
