@@ -77,6 +77,11 @@ in
   # invoked, since nothing points GDM at them).
   xsession.enable = true;
 
+  home.sessionVariables = {
+    EDITOR = "vim";
+    VISUAL = "vim";
+  };
+
   home.packages = with pkgs; [
     # jujutsu and claude-code are not listed here: both are in the shared
     # baseline in modules/dev-toolchain.nix, so every machine gets them.
