@@ -67,6 +67,16 @@ in
     options = [ "grp:alts_toggle" ];
   };
 
+  # home.keyboard above is otherwise inert: home-manager only applies it via
+  # a setxkbmap systemd user service defined in its xsession module, gated
+  # behind this option. GDM starts the system-level "none+i3" session
+  # (modules/desktop/i3), not home-manager's own — but that session already
+  # runs graphical-session.target, which is the target that service is
+  # WantedBy, so enabling this is enough to get it running without any
+  # other effect (its ~/.xsession/~/.xprofile output is simply never
+  # invoked, since nothing points GDM at them).
+  xsession.enable = true;
+
   home.packages = with pkgs; [
     # jujutsu and claude-code are not listed here: both are in the shared
     # baseline in modules/dev-toolchain.nix, so every machine gets them.
