@@ -95,6 +95,7 @@
     vim
     curl
     htop
+    libreoffice
   ];
 
   # Needed for laptops to pull their own configuration.
