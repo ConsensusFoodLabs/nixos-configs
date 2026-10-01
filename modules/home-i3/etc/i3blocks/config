@@ -30,5 +30,9 @@ interval=30
 [brightness]
 interval=10
 
+# Click to pause the idle screen lock for this session. See the block.
+[caffeine]
+interval=10
+
 [datetime]
 interval=1

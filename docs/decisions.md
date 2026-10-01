@@ -933,6 +933,14 @@ The owner's i3 config binds `$mod+Shift+x` to `loginctl lock-session`. That
 binding is a convenience; it is not the control. Deleting it changes nothing
 about whether the machine locks itself.
 
+The bar has a `caffeine` block that pauses the idle lock for the current
+session: it tells the running xautolock to stand down and zeroes the X
+screensaver timeout. This is the same concession the system already makes to
+an application that asks via the ScreenSaver Inhibit D-Bus call (xssproxy),
+with a person asking instead of Chrome. It does not touch xss-lock's response
+to suspend, lid close or `loginctl lock-session`, and it does not persist: X
+and xautolock come up with locking on at every login.
+
 ### What did not come across from the reference configuration
 
 The i3 setup was ported from a personal repository. Three things were left

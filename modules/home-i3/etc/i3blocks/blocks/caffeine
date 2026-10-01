@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pause the idle screen lock for this session. Click to toggle.
+#
+# A video call or a long read should not end in a lock screen. The idle lock
+# is two things (modules/desktop/i3/locking.nix): xautolock, which counts
+# input idle time, and the X server's own screensaver, whose activation
+# xss-lock turns into a lock. Pausing means telling the running xautolock to
+# stand down and setting the X screensaver timeout to zero; DPMS goes with
+# it so the panel does not blank either.
+#
+# What this does NOT pause: xss-lock still locks on suspend, lid close and
+# `loginctl lock-session`, and the lock screen itself is untouched. It is
+# the same concession the system already makes to any application that asks
+# via the ScreenSaver Inhibit D-Bus call (xssproxy), only with a person
+# asking instead of Chrome. Nothing persists: X and xautolock start every
+# session with locking on, so a pause cannot outlive a logout.
+#
+# The X server is the source of truth for the state, not a file: a timeout
+# of 0 means paused. That way the block agrees with reality even if
+# something else ran `xset s`.
+set -euo pipefail
+
+paused() {
+  xset q | grep -qE '^\s*timeout:\s+0\b'
+}
+
+case "${BLOCK_BUTTON:-}" in
+  1)
+    if paused; then
+      xautolock -enable
+      xset s default +dpms
+    else
+      xautolock -disable
+      xset s off -dpms
+    fi
+    ;;
+esac
+
+if paused; then
+  echo "LOCK off"
+  echo "LOCK off"
+  echo "#E5C07B"
+else
+  echo "LOCK on"
+  echo "LOCK on"
+fi
