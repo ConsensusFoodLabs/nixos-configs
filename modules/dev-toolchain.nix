@@ -113,6 +113,7 @@
     gnumake
     gh
     just
+    just-lsp
     google-cloud-sdk
 
     # Pinned rather than plain `python3` because this nixpkgs's `python3`
