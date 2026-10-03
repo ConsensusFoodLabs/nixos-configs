@@ -120,17 +120,38 @@ whatever network the machine is on, including untrusted ones. Key-only
 authentication is what makes that acceptable rather than reckless; see D32 for
 what is and is not mitigated.
 
-## Screenshots (i3 machines)
+## Screenshots
+
+Every machine has a `screenshot` command, whichever desktop it runs:
+
+```
+screenshot            # whole screen
+screenshot select     # drag out a region
+screenshot window     # the focused window
+```
+
+**On i3 machines** the keys are:
 
 | Key | What |
 |---|---|
-| `Print` | whole screen |
-| `Shift+Print` | select a region |
-| `$mod+Print` | the focused window |
+| `Print` | GNOME's screenshot picker: whole screen, current window or an area, then save or copy |
+| `Shift+Print` | select a region, no questions asked |
+| `$mod+Print` | the focused window, no questions asked |
+| `$mod+Shift+Print` | the whole screen, no questions asked |
 
-Each copies the image to the clipboard and also writes
+The three no-questions keys copy the image to the clipboard and also write
 `~/Pictures/screenshots/<date>.png`, so pasting later still works after the
 clipboard has moved on. Escape cancels a region selection.
+
+The picker is `gnome-screenshot`, running on plain X11 since there is no
+gnome-shell to ask. One thing to know: there is no clipboard manager in the
+i3 session, so an image you *Copy to Clipboard* in its dialog is gone once
+that dialog is closed. Paste first, or *Save* instead.
+
+**On GNOME machines** `Print` opens GNOME's own screenshot UI, which has its
+own screen / window / area picker, copies to the clipboard and saves under
+`~/Pictures/Screenshots`. The `screenshot` command opens that same UI through
+the desktop portal, so the mode argument is a no-op there — pick in the UI.
 
 ## USB sticks and external drives
 

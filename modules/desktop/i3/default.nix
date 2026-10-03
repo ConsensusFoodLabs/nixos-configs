@@ -57,6 +57,13 @@ in
 
     services.libinput.enable = true;
 
+    # The settings backend GTK and GNOME applications store their
+    # preferences in. GNOME enables it; without it every such application
+    # (gnome-screenshot, the file chooser, ...) runs on an in-memory
+    # backend, warns about it on every start and forgets its settings on
+    # exit.
+    programs.dconf.enable = true;
+
     fonts.packages = with pkgs; [
       noto-fonts
       noto-fonts-color-emoji

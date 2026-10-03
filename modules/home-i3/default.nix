@@ -18,12 +18,14 @@
 { config, lib, pkgs, ... }:
 
 let
-  # Power menu for $mod+Shift+e, and screenshots for PrintScreen. Both are
-  # shell applications with a page of script in them, so they live in their
-  # own files: a module is easier to read when it says which pieces the
-  # session has than when it spells each one out.
+  # Power menu for $mod+Shift+e. A shell application with a page of script
+  # in it, so it lives in its own file: a module is easier to read when it
+  # says which pieces the session has than when it spells each one out.
+  #
+  # The `screenshot` command behind the Print bindings is not here: it is
+  # the same command on every machine, GNOME included, so it ships with the
+  # session at the system level (modules/desktop/screenshot.nix).
   rofiPowermenu = pkgs.callPackage ./rofi-powermenu.nix { };
-  screenshot = pkgs.callPackage ./screenshot.nix { };
 in
 {
   home.packages = with pkgs; [
@@ -32,7 +34,13 @@ in
     # leave `rofi -modi emoji` reporting an unknown mode.
     (rofi.override { plugins = [ rofi-emoji ]; })
     rofiPowermenu
-    screenshot
+    # GNOME's screenshot application, for Print: a picker for the whole
+    # screen, the current window or an area, then a dialog to save or copy.
+    # It falls back to plain X11 grabbing when there is no gnome-shell to
+    # ask, which is the case here. The quick, no-questions shortcuts on the
+    # other Print combinations are the fleet-wide `screenshot` command
+    # (modules/desktop/screenshot.nix).
+    gnome-screenshot
 
     picom
     feh

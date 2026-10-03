@@ -11,7 +11,7 @@
 # that profile because a second profile would want the same session, and
 # because "which desktop" is already a fleet attribute rather than a profile
 # one (D33).
-{ ... }:
+{ pkgs, ... }:
 
 {
   imports = [
@@ -31,4 +31,12 @@
   # Both branches lock after five minutes idle and on suspend.
   services.xserver.enable = true;
   services.displayManager.gdm.enable = true;
+
+  # One `screenshot` command on every machine, whichever desktop. It ships
+  # with the session rather than with a person because the i3 config's Print
+  # bindings assume it exists and because it is the same command on a GNOME
+  # machine — the desktop-specific half is picked at run time. See
+  # screenshot.nix for the two halves and why the GNOME one goes through the
+  # portal.
+  environment.systemPackages = [ (pkgs.callPackage ./screenshot.nix { }) ];
 }

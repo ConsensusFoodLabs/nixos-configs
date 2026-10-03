@@ -1554,3 +1554,54 @@ protect a store hash rather than a behaviour.
 **Consequence for the older entries.** D33, D35, D37 and D38 name
 `profiles/engineering.nix` as the home of things that are now in `modules/`.
 They were true when written and are left alone; this entry is the map.
+
+## D42 — Screenshots ship with the session, on every desktop
+
+**Decided:** the `screenshot` command moves from `modules/home-i3` to
+`modules/desktop/screenshot.nix` and is installed system-wide, so it exists on
+every machine whichever desktop the inventory gives it. It keeps the maim
+implementation D37 chose for X11 and gains a Wayland one for GNOME.
+
+**Why it moved.** It was i3-only by accident of where it was written, not by
+intent: the home-i3 layer is "the i3 session's tools", and a screenshot
+command is not an i3 tool any more than a terminal is. A GNOME machine has
+`Print` from the shell, but no `screenshot` on PATH, so a script or a habit
+carried from an i3 machine silently has nothing to call. Shipping it with the
+session (D37's category: what a laptop needs to be usable, whoever is at it)
+rather than with a person also means the i3 config's Print bindings cannot be
+left pointing at a command a personal file removed.
+
+**Why GNOME goes through the portal.** On GNOME 50 there is exactly one door.
+The shell's own D-Bus screenshot service checks the caller and answers only
+the media-keys daemon and the GNOME portal backend — `gnome-screenshot` was
+dropped from that list along the way and no longer works. mutter does not
+implement the wlroots screencopy protocols, so `grim` and its relatives are
+out. What remains is `org.freedesktop.portal.Screenshot`, which with
+`interactive=true` opens the shell's own screenshot UI (and skips the portal's
+"allow applications to take screenshots?" prompt, which is only for the
+non-interactive path). That UI saves to `~/Pictures/Screenshots` and copies to
+the clipboard itself, so the command's job on GNOME is to open it and wait.
+
+**Why the Wayland half is Python.** The portal closes a request the moment
+the sender's bus connection goes away, which cancels the UI. `gdbus call`
+returns as soon as the method does and takes its connection with it. The
+client has to hold the connection until the `Response` signal, so it is thirty
+lines against Gio (`screenshot-portal.py`) rather than one line of shell. The
+X11 half stays as the shell script it was.
+
+**What is not uniform, and is left that way.** The mode argument is honoured
+only on X11; GNOME's UI has its own picker and the portal has no way to
+preselect one. The i3 branch writes `~/Pictures/screenshots`, GNOME writes
+`~/Pictures/Screenshots`; renaming the i3 one to match would have moved every
+existing screenshot on the one i3 machine for the sake of a capital letter.
+
+**And the picker on i3.** The one thing GNOME's `Print` had that the maim
+bindings did not was a choice: whole screen, this window or an area, decided
+after pressing the key rather than by which key. `gnome-screenshot` still
+offers exactly that dialog and still carries its own X11 backend for when
+there is no gnome-shell to ask, so on i3 it is bound to `Print` and the
+no-questions maim shortcuts move to the modified combinations. It is the
+same program the GNOME branch above can no longer use — the restriction is
+in the shell's D-Bus service, which the X11 backend never touches. It needs
+dconf for its settings, which the i3 branch now enables; without it the
+application runs on an in-memory backend and forgets its settings on exit.

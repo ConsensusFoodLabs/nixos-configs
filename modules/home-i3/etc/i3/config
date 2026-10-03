@@ -59,11 +59,13 @@ bindsym XF86MonBrightnessDown exec --no-startup-id xbacklight -dec 10
 # Dismiss notifications
 bindsym Control+Shift+space exec --no-startup-id dunstctl close
 
-# Screenshots. Each copies to the clipboard and writes a dated PNG under
-# ~/Pictures/screenshots.
-bindsym Print       exec --no-startup-id screenshot screen
-bindsym Shift+Print exec --no-startup-id screenshot select
-bindsym $mod+Print  exec --no-startup-id screenshot window
+# Screenshots. Print opens gnome-screenshot's picker (whole screen, current
+# window or an area, as on GNOME). The others ask nothing: each copies to the
+# clipboard and writes a dated PNG under ~/Pictures/screenshots.
+bindsym Print            exec --no-startup-id gnome-screenshot --interactive
+bindsym Shift+Print      exec --no-startup-id screenshot select
+bindsym $mod+Print       exec --no-startup-id screenshot window
+bindsym $mod+Shift+Print exec --no-startup-id screenshot screen
 
 floating_modifier $mod
 tiling_drag modifier titlebar
