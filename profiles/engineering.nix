@@ -15,6 +15,7 @@
     ../modules/desktop
     ../modules/hardware/fingerprint.nix
     ../modules/dev-toolchain.nix
+    ../modules/containers.nix
   ];
 
   # profiles/base.nix turns the firewall on fleet-wide and says why: laptops

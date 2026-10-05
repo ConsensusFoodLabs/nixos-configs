@@ -153,6 +153,29 @@ own screen / window / area picker, copies to the clipboard and saves under
 `~/Pictures/Screenshots`. The `screenshot` command opens that same UI through
 the desktop portal, so the mode argument is a no-op there — pick in the UI.
 
+## Containers
+
+Engineering machines have rootless podman, with `docker` as an alias for it
+and `podman compose` (podman-compose) for compose files. Containers run as
+you, not as root: no daemon, no `docker` group, nothing to be added to.
+
+```
+podman run --rm -it docker.io/library/alpine
+docker ps                       # same thing, for tooling that says docker
+podman compose up               # in a directory with a compose file
+```
+
+Something that wants a Docker socket (an IDE, testcontainers) gets the
+rootless one:
+
+```
+systemctl --user start podman.socket
+export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
+```
+
+There is deliberately no system-wide `/var/run/docker.sock`: access to that
+would be access to root.
+
 ## USB sticks and external drives
 
 Removable media is mounted automatically under `/run/media/$USER/` when you
