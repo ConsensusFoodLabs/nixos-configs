@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# gcloud sign-in: whether the active account's token is good, and until
+# when. Click to sign in again, in Chrome, as that account.
+#
+# gcloud holds two credentials. The refresh token is what `gcloud auth
+# login` obtains and what Google's session policy eventually expires. The
+# access token is minted from it, lasts an hour, and is renewed silently
+# whenever a command finds it expired. The time shown is the access
+# token's expiry, because that is the only expiry gcloud writes down.
+# Reaching it does not mean signing in again: the block asks gcloud for a
+# token at that point, which renews the cache if the refresh token still
+# works. Only when that renewal is refused — the refresh token expired or
+# revoked — does the block turn red and ask for a sign-in.
+#
+# The cache is read directly rather than through gcloud, which takes well
+# over a second to start — too much for every tick of a bar. gcloud is run
+# only to renew, which is at most once an hour, and with prompts disabled:
+# a block has no terminal, and a gcloud that stopped to ask for a password
+# would hang here forever.
+#
+# Click: `gcloud auth login --force` for the account, in a terminal so its
+# output is visible, with BROWSER pointed at Chrome and the profile whose
+# signed-in Google account is the same one — looked up in Chrome's profile
+# list — so the consent page opens already signed in as the right user
+# rather than in whichever profile Chrome last had in front.
+#
+# Nothing here prints a token or a secret, and the block holds none.
+set -euo pipefail
+
+config_dir=${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}
+chrome_state="$HOME/.config/google-chrome/Local State"
+# Matches signal=11 in ../config: raised after a sign-in so the block
+# redraws then rather than at its next tick.
+signal=11
+
+red="#E06C75"
+yellow="#E5C07B"
+grey="#5C6370"
+
+# The active account and the expiry of its cached access token, printed as
+# "<account><tab><unix time>", the time empty when nothing is cached.
+# Prints nothing when no account is active.
+cached() {
+  python3 -I - "$config_dir" <<'PY'
+import configparser, datetime, os, sqlite3, sys
+
+d = sys.argv[1]
+try:
+    with open(os.path.join(d, "active_config")) as f:
+        name = f.read().strip() or "default"
+except OSError:
+    name = "default"
+ini = configparser.ConfigParser()
+ini.read(os.path.join(d, "configurations", "config_" + name))
+account = ini.get("core", "account", fallback="").strip()
+if not account:
+    sys.exit(0)
+
+expiry = ""
+try:
+    db = sqlite3.connect("file:" + os.path.join(d, "access_tokens.db") + "?mode=ro", uri=True)
+    row = db.execute(
+        "select token_expiry from access_tokens where account_id = ?", (account,)
+    ).fetchone()
+    if row and row[0]:
+        # Stored as a naive UTC timestamp.
+        t = datetime.datetime.fromisoformat(row[0]).replace(tzinfo=datetime.timezone.utc)
+        expiry = str(int(t.timestamp()))
+except (sqlite3.Error, OSError, ValueError):
+    pass
+print(account + "\t" + expiry)
+PY
+}
+
+# Ask gcloud for a token, which renews the cached one if it can. The token
+# itself is discarded; only the error text comes back.
+renew() {
+  CLOUDSDK_CORE_DISABLE_PROMPTS=1 timeout 60 \
+    gcloud auth print-access-token 2>&1 >/dev/null </dev/null
+}
+
+# The Chrome profile directory whose signed-in account is $1, if any.
+chrome_profile() {
+  [[ -r $chrome_state ]] || return 0
+  jq -r --arg user "$1" '
+    .profile.info_cache | to_entries[] | select(.value.user_name == $user) | .key
+  ' "$chrome_state" 2>/dev/null | head -n 1
+}
+
+login() {
+  local account=$1 profile browser
+  profile=$(chrome_profile "$account")
+  # Python's webbrowser module reads BROWSER: a command line with %s for
+  # the URL, and a trailing & so it does not wait for Chrome to exit —
+  # without that a Chrome started fresh would block gcloud from ever
+  # serving the redirect the sign-in ends with.
+  # shellcheck disable=SC2016 # the quotes are for webbrowser's shlex, not bash
+  browser="google-chrome-stable${profile:+ --profile-directory='$profile'} %s &"
+  # Detached and with no inherited stdout: i3blocks reads this block's
+  # output until end-of-file, which a terminal holding it open would
+  # postpone until it closed.
+  # shellcheck disable=SC2016 # $1 and $2 are the inner bash's
+  setsid -f i3-sensible-terminal -e bash -c '
+    BROWSER=$1 gcloud auth login --force "$2"
+    status=$?
+    pkill -RTMIN+'"$signal"' -x i3blocks
+    if (( status != 0 )); then
+      read -rp "gcloud auth login failed. Press Enter to close."
+    fi
+  ' gcloud-login "$browser" "$account" >/dev/null 2>&1
+}
+
+state=$(cached)
+account=${state%%$'\t'*}
+expiry=${state#*$'\t'}
+
+case "${BLOCK_BUTTON:-}" in
+  1) [[ -n $account ]] && login "$account" ;;
+esac
+
+if [[ -z $account ]]; then
+  echo "GCP none"
+  echo "GCP none"
+  echo "$grey"
+  exit 0
+fi
+
+if [[ -z $expiry || $expiry -le $(date +%s) ]]; then
+  if err=$(renew); then
+    state=$(cached)
+    expiry=${state#*$'\t'}
+  elif grep -qiE 'reauth|invalid_grant|invalid_rapt|revoked' <<<"$err"; then
+    echo "GCP reauth"
+    echo "GCP reauth"
+    echo "$red"
+    exit 0
+  else
+    # Could not renew for some other reason, usually no network. Not a
+    # sign-in problem until the renewal can be tried.
+    echo "GCP stale"
+    echo "GCP stale"
+    echo "$yellow"
+    exit 0
+  fi
+fi
+
+until=$(date -d "@$expiry" '+%H:%M')
+echo "GCP ok until $until"
+echo "GCP $until"
