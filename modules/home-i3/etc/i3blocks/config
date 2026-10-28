@@ -34,7 +34,7 @@ interval=10
 [caffeine]
 interval=10
 
-# gcloud sign-in and when its token runs out. Click to sign in again, in
+# gcloud sign-in and how long its token has left. Click to sign in again, in
 # Chrome. The signal is raised by the block itself when a sign-in finishes.
 [gcloud]
 interval=60

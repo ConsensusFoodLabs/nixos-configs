@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# gcloud sign-in: whether the active account's token is good, and until
-# when. Click to sign in again, in Chrome, as that account.
+# gcloud sign-in: whether the active account's token is good, and how long
+# it has left. Click to sign in again, in Chrome, as that account.
 #
 # gcloud holds two credentials. The refresh token is what `gcloud auth
 # login` obtains and what Google's session policy eventually expires. The
 # access token is minted from it, lasts an hour, and is renewed silently
-# whenever a command finds it expired. The time shown is the access
-# token's expiry, because that is the only expiry gcloud writes down.
-# Reaching it does not mean signing in again: the block asks gcloud for a
-# token at that point, which renews the cache if the refresh token still
-# works. Only when that renewal is refused — the refresh token expired or
+# whenever a command finds it expired. The time left is the access
+# token's, because that is the only expiry gcloud writes down. Running out
+# does not mean signing in again: the block asks gcloud for a token at
+# that point, which renews the cache if the refresh token still works. Only when that renewal is refused — the refresh token expired or
 # revoked — does the block turn red and ask for a sign-in.
 #
 # The cache is read directly rather than through gcloud, which takes well
@@ -144,6 +143,8 @@ if [[ -z $expiry || $expiry -le $(date +%s) ]]; then
   fi
 fi
 
-until=$(date -d "@$expiry" '+%H:%M')
-echo "GCP ok until $until"
-echo "GCP $until"
+# Tokens last an hour, so minutes are enough. Rounded up: "1m" still means
+# there is time left, and 0 would read as expired.
+left=$(( (expiry - $(date +%s) + 59) / 60 ))
+echo "GCP ok, ${left}m left"
+echo "GCP ${left}m"
