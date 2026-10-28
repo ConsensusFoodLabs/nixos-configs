@@ -20,6 +20,29 @@
 #     turn red before the countdown reaches it.
 #   - The sign-in time is the modification time of gcloud's credential
 #     store, which `gcloud auth login` rewrites and nothing routine does.
+#     A session can also be restarted without a sign-in: a gcloud run in
+#     a terminal answers the challenge by asking for the password, and on
+#     success caches a reauth proof token next to the access token. The
+#     block remembers when it first saw each such token, under
+#     $XDG_STATE_HOME, and counts from whichever is later. A sign-in
+#     clears that token, so the two cannot disagree for long.
+#
+# What a failed sign-in does: nothing. gcloud stores the new credential
+# only after the browser flow completes and the account it came back as
+# is the one asked for — a wrong Chrome profile is refused with a message
+# saying so — and otherwise exits non-zero, leaving the old credential,
+# its timestamp and this block as they were. The terminal then stays open
+# with the error.
+#
+# What an abandoned sign-in does: gcloud waits for the browser's redirect
+# with no time limit of its own, so a consent page closed unread would
+# leave a terminal waiting for good, and a second click would start a
+# second one beside it. So a click first ends any sign-in this block
+# still has waiting — the shell running it in the terminal records its
+# process id under $XDG_STATE_HOME, and its process group is what gets
+# killed, since killing the terminal alone has been seen to leave gcloud
+# behind — and a sign-in that gets no answer in ten minutes gives up by
+# itself.
 #
 # The block is also honest about the present: the hourly access token is
 # read from gcloud's cache, and when it has run out the block asks gcloud
@@ -39,6 +62,7 @@
 set -euo pipefail
 
 session_hours=16
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/i3blocks
 
 config_dir=${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}
 chrome_state="$HOME/.config/google-chrome/Local State"
@@ -50,12 +74,13 @@ red="#E06C75"
 yellow="#E5C07B"
 grey="#5C6370"
 
-# The active account and the expiry of its cached access token, printed as
-# "<account><tab><unix time>", the time empty when nothing is cached.
-# Prints nothing when no account is active.
+# The active account, the expiry of its cached access token, and a
+# fingerprint of its cached reauth proof token, printed as
+# "<account><tab><unix time><tab><fingerprint>"; the last two empty when
+# nothing is cached. Prints nothing when no account is active.
 cached() {
   python3 -I - "$config_dir" <<'PY'
-import configparser, datetime, os, sqlite3, sys
+import configparser, datetime, hashlib, os, sqlite3, sys
 
 d = sys.argv[1]
 try:
@@ -69,19 +94,22 @@ account = ini.get("core", "account", fallback="").strip()
 if not account:
     sys.exit(0)
 
-expiry = ""
+expiry = rapt = ""
 try:
     db = sqlite3.connect("file:" + os.path.join(d, "access_tokens.db") + "?mode=ro", uri=True)
     row = db.execute(
-        "select token_expiry from access_tokens where account_id = ?", (account,)
+        "select token_expiry, rapt_token from access_tokens where account_id = ?", (account,)
     ).fetchone()
     if row and row[0]:
         # Stored as a naive UTC timestamp.
         t = datetime.datetime.fromisoformat(row[0]).replace(tzinfo=datetime.timezone.utc)
         expiry = str(int(t.timestamp()))
+    if row and row[1]:
+        # Enough to tell one token from the next; never the token itself.
+        rapt = hashlib.sha256(row[1].encode()).hexdigest()[:16]
 except (sqlite3.Error, OSError, ValueError):
     pass
-print(account + "\t" + expiry)
+print(account + "\t" + expiry + "\t" + rapt)
 PY
 }
 
@@ -111,16 +139,40 @@ login() {
   browser="google-chrome-stable${profile:+ --profile-directory='$profile'} %s &"
   # Detached and with no inherited stdout: i3blocks reads this block's
   # output until end-of-file, which a terminal holding it open would
-  # postpone until it closed.
-  # shellcheck disable=SC2016 # $1 and $2 are the inner bash's
+  # postpone until it closed. The shell in the terminal leads a session
+  # of its own, courtesy of the terminal's pty, so its process id names
+  # the group gcloud runs in — provided timeout keeps gcloud in the
+  # foreground group instead of making one of its own, hence
+  # --foreground.
+  end_previous_login
+  mkdir -p "$state_dir"
+  # shellcheck disable=SC2016 # $1, $2, $3 and $$ are the inner bash's
   setsid -f i3-sensible-terminal -e bash -c '
-    BROWSER=$1 gcloud auth login --force "$2"
+    echo $$ >"$3"
+    BROWSER=$1 timeout --foreground 600 gcloud auth login --force "$2"
     status=$?
+    rm -f "$3"
     pkill -RTMIN+'"$signal"' -x i3blocks
-    if (( status != 0 )); then
+    if (( status == 124 )); then
+      read -rp "gcloud auth login gave up waiting for the browser. Press Enter to close."
+    elif (( status != 0 )); then
       read -rp "gcloud auth login failed. Press Enter to close."
     fi
-  ' gcloud-login "$browser" "$account" >/dev/null 2>&1
+  ' gcloud-login "$browser" "$account" "$state_dir/gcloud-login.pid" >/dev/null 2>&1
+}
+
+# End a sign-in launched earlier by this block that is still waiting.
+end_previous_login() {
+  local pid
+  pid=$(cat "$state_dir/gcloud-login.pid" 2>/dev/null) || return 0
+  [[ $pid =~ ^[0-9]+$ ]] || return 0
+  # Only if that process id still leads the session this block started,
+  # not whatever may have been given the number since.
+  if [[ $(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ') == "$pid" ]] &&
+     ps -o args= -p "$pid" 2>/dev/null | grep -q 'gcloud-login'; then
+    kill -- -"$pid" 2>/dev/null || true
+  fi
+  rm -f "$state_dir/gcloud-login.pid"
 }
 
 show() {
@@ -130,9 +182,7 @@ show() {
   exit 0
 }
 
-state=$(cached)
-account=${state%%$'\t'*}
-expiry=${state#*$'\t'}
+IFS=$'\t' read -r account expiry rapt <<<"$(cached)"
 
 case "${BLOCK_BUTTON:-}" in
   1) [[ -n $account ]] && login "$account" ;;
@@ -152,6 +202,15 @@ if [[ -z $expiry || $expiry -le $now ]]; then
 fi
 
 signed_in=$(stat -c %Y "$config_dir/credentials.db" 2>/dev/null || echo "$now")
+if [[ -n ${rapt:-} ]]; then
+  seen=$(cat "$state_dir/gcloud-reauth" 2>/dev/null || true)
+  if [[ ${seen%% *} != "$rapt" ]]; then
+    mkdir -p "$state_dir"
+    seen="$rapt $now"
+    echo "$seen" >"$state_dir/gcloud-reauth"
+  fi
+  (( ${seen#* } > signed_in )) && signed_in=${seen#* }
+fi
 left=$(( signed_in + session_hours * 3600 - now ))
 (( left > 0 )) || left=0
 show "$(printf 'GCP %d:%02d' $(( left / 3600 )) $(( left % 3600 / 60 )))"
