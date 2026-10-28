@@ -34,8 +34,8 @@ interval=10
 [caffeine]
 interval=10
 
-# gcloud sign-in and how long its token has left. Click to sign in again, in
-# Chrome. The signal is raised by the block itself when a sign-in finishes.
+# gcloud sign-in and how long the session has left. Click to sign in again,
+# in Chrome. The signal is raised by the block itself when a sign-in finishes.
 [gcloud]
 interval=60
 signal=11

@@ -1,21 +1,33 @@
 #!/usr/bin/env bash
-# gcloud sign-in: whether the active account's token is good, and how long
-# it has left. Click to sign in again, in Chrome, as that account.
+# gcloud sign-in: how long the session has left, and whether it is still
+# good. Click to sign in again, in Chrome, as the active account.
 #
-# gcloud holds two credentials. The refresh token is what `gcloud auth
-# login` obtains and what Google's session policy eventually expires. The
-# access token is minted from it, lasts an hour, and is renewed silently
-# whenever a command finds it expired. The time left is the access
-# token's, because that is the only expiry gcloud writes down. Running out
-# does not mean signing in again: the block asks gcloud for a token at
-# that point, which renews the cache if the refresh token still works. Only when that renewal is refused — the refresh token expired or
-# revoked — does the block turn red and ask for a sign-in.
+#   GCP 12:34   signed in, 12h34m until the next sign-in is due
+#   GCP         grey: no active account; yellow: could not check, usually
+#               no network; red: signed out, click to sign in
 #
-# The cache is read directly rather than through gcloud, which takes well
-# over a second to start — too much for every tick of a bar. gcloud is run
-# only to renew, which is at most once an hour, and with prompts disabled:
-# a block has no terminal, and a gcloud that stopped to ask for a password
-# would hang here forever.
+# What runs out is the Google Workspace session. The organisation's
+# "Google Cloud session control" policy ends every gcloud session a fixed
+# time after sign-in, after which gcloud's token refreshes are refused
+# with a reauthentication challenge. gcloud writes down neither that
+# length nor the sign-in time, so both are taken from elsewhere:
+#
+#   - The length was measured from this machine's gcloud logs: after one
+#     sign-in, a command succeeded 15h50m later and the first challenge
+#     came at 16h01m; no other sign-in was challenged sooner. That is the
+#     16 hours below. If the policy changes, the number here is wrong,
+#     and the block will show "0:00" for a while before the real end, or
+#     turn red before the countdown reaches it.
+#   - The sign-in time is the modification time of gcloud's credential
+#     store, which `gcloud auth login` rewrites and nothing routine does.
+#
+# The block is also honest about the present: the hourly access token is
+# read from gcloud's cache, and when it has run out the block asks gcloud
+# for a new one — the only way to learn whether the session is still
+# alive. That renewal is the one thing gcloud is started for; the start-up
+# cost is too high to pay every tick. Prompts are disabled for it, since a
+# block has no terminal and a gcloud that stopped to ask for a password
+# would hang here for good.
 #
 # Click: `gcloud auth login --force` for the account, in a terminal so its
 # output is visible, with BROWSER pointed at Chrome and the profile whose
@@ -25,6 +37,8 @@
 #
 # Nothing here prints a token or a secret, and the block holds none.
 set -euo pipefail
+
+session_hours=16
 
 config_dir=${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}
 chrome_state="$HOME/.config/google-chrome/Local State"
@@ -109,6 +123,13 @@ login() {
   ' gcloud-login "$browser" "$account" >/dev/null 2>&1
 }
 
+show() {
+  echo "$1"
+  echo "GCP"
+  [[ $# -gt 1 ]] && echo "$2"
+  exit 0
+}
+
 state=$(cached)
 account=${state%%$'\t'*}
 expiry=${state#*$'\t'}
@@ -117,34 +138,20 @@ case "${BLOCK_BUTTON:-}" in
   1) [[ -n $account ]] && login "$account" ;;
 esac
 
-if [[ -z $account ]]; then
-  echo "GCP none"
-  echo "GCP none"
-  echo "$grey"
-  exit 0
-fi
+[[ -n $account ]] || show "GCP" "$grey"
 
-if [[ -z $expiry || $expiry -le $(date +%s) ]]; then
+now=$(date +%s)
+if [[ -z $expiry || $expiry -le $now ]]; then
   if err=$(renew); then
-    state=$(cached)
-    expiry=${state#*$'\t'}
+    :
   elif grep -qiE 'reauth|invalid_grant|invalid_rapt|revoked' <<<"$err"; then
-    echo "GCP reauth"
-    echo "GCP reauth"
-    echo "$red"
-    exit 0
+    show "GCP" "$red"
   else
-    # Could not renew for some other reason, usually no network. Not a
-    # sign-in problem until the renewal can be tried.
-    echo "GCP stale"
-    echo "GCP stale"
-    echo "$yellow"
-    exit 0
+    show "GCP" "$yellow"
   fi
 fi
 
-# Tokens last an hour, so minutes are enough. Rounded up: "1m" still means
-# there is time left, and 0 would read as expired.
-left=$(( (expiry - $(date +%s) + 59) / 60 ))
-echo "GCP ok, ${left}m left"
-echo "GCP ${left}m"
+signed_in=$(stat -c %Y "$config_dir/credentials.db" 2>/dev/null || echo "$now")
+left=$(( signed_in + session_hours * 3600 - now ))
+(( left > 0 )) || left=0
+show "$(printf 'GCP %d:%02d' $(( left / 3600 )) $(( left % 3600 / 60 )))"
